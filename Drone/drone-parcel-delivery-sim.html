@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>3D Parcel Delivery Drone Simulator</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{overflow:hidden;background:#0b1120;color:#f8fafc;font-family:system-ui,-apple-system,"Segoe UI",sans-serif}
+canvas{display:block}
+.panel{position:absolute;z-index:3;background:rgba(15,23,42,.93);border:1px solid #334155;border-radius:12px;backdrop-filter:blur(8px);box-shadow:0 8px 30px #0005}
+#top{top:12px;left:12px;width:320px;padding:14px;max-height:calc(100vh - 24px);overflow:auto}
+h1{font-size:15px;letter-spacing:.5px;color:#38bdf8;margin-bottom:10px}
+h2{font-size:12px;color:#cbd5e1;margin:12px 0 7px;text-transform:uppercase;letter-spacing:.5px}
+.stat{display:flex;justify-content:space-between;font-size:12px;margin:5px 0;color:#cbd5e1}
+.val{font-family:monospace;color:#4ade80;font-weight:700}
+button,select{font:inherit}
+button{border:1px solid #475569;background:#1e293b;color:#f8fafc;border-radius:7px;padding:8px 9px;font-size:12px;cursor:pointer}
+button:hover{background:#334155}
+button.active{background:#075985;border-color:#38bdf8;color:#e0f2fe}
+button.primary{background:#0369a1;border-color:#0ea5e9}
+button.danger{border-color:#9f1239;color:#fecdd3}
+.actions{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+.actions button{width:100%}
+.hint{font-size:11px;line-height:1.45;color:#94a3b8;margin-top:7px}
+#locations{font-size:11px;line-height:1.5;color:#cbd5e1;max-height:125px;overflow:auto}
+.loc{display:flex;justify-content:space-between;gap:8px;padding:5px 0;border-bottom:1px solid #263449}
+.loc button{padding:2px 7px;font-size:10px}
+#mission{font-size:12px;color:#fbbf24;line-height:1.5;margin-top:8px;min-height:34px}
+#controls{left:12px;bottom:12px;padding:9px 12px;font-size:11px;color:#cbd5e1;line-height:1.6}
+kbd{background:#1e293b;border:1px solid #475569;border-radius:4px;padding:1px 5px;color:white}
+#maphelp{position:absolute;right:12px;top:12px;z-index:2;padding:8px 10px;border-radius:8px;background:#0f172acc;color:#cbd5e1;font-size:11px;max-width:210px}
+#toast{position:absolute;z-index:5;top:14px;left:50%;transform:translateX(-50%);background:#0f172a;border:1px solid #38bdf8;border-radius:8px;padding:8px 12px;font-size:12px;display:none}
+@media(max-width:600px){#top{width:265px;padding:10px;top:7px;left:7px;max-height:68vh}h1{font-size:13px}#controls{left:7px;bottom:7px;font-size:10px}#maphelp{right:7px;top:auto;bottom:120px;max-width:150px;font-size:10px}}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+</head>
+<body>
+<section id="top" class="panel">
+<h1>📦 3D PARCEL DELIVERY DRONE</h1>
+<div class="stat"><span>Flight altitude</span><span class="val" id="alt">0.0 m</span></div>
+<div class="stat"><span>Ground speed</span><span class="val" id="speed">0.0 m/s</span></div>
+<div class="stat"><span>Mission progress</span><span class="val" id="progress">0 / 0</span></div>
+<div class="stat"><span>Drone status</span><span class="val" id="status">IDLE</span></div>
+
+<h2>1 · Set locations</h2>
+<div class="actions">
+<button id="pickupMode" class="active">📍 Set pickup point</button>
+<button id="deliveryMode">＋ Add delivery point</button>
+</div>
+<p class="hint">Choose a mode, then click anywhere on the 3D ground to place that location. You can add multiple delivery points.</p>
+
+<h2>2 · Delivery locations</h2>
+<div id="locations">Pickup: not set<br>No delivery points yet.</div>
+
+<h2>3 · Mission control</h2>
+<div class="actions">
+<button id="start" class="primary">▶ Start deliveries</button>
+<button id="pause">Ⅱ Pause</button>
+<button id="reset" class="danger">↻ Reset mission</button>
+<button id="clear">Clear locations</button>
+</div>
+<div id="mission">Set a pickup point and at least one delivery point to begin.</div>
+<p class="hint">Autonomous demo: the drone collects one parcel at the pickup point, delivers it to each destination, and returns to collect the next parcel.</p>
+</section>
+
+<div id="maphelp">Click the ground to place locations. Blue = pickup · Orange = delivery · Green = completed.</div>
+<div id="controls" class="panel"><b>Manual flight</b><br>
+<kbd>W</kbd>/<kbd>S</kbd> altitude · <kbd>↑</kbd>/<kbd>↓</kbd> forward/back<br>
+<kbd>←</kbd>/<kbd>→</kbd> strafe · <kbd>A</kbd>/<kbd>D</kbd> rotate · <kbd>C</kbd> camera
+</div>
+<div id="toast"></div>
+
+<script>
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x0f172a);
+scene.fog=new THREE.FogExp2(0x0f172a,.0038);
+const camera=new THREE.PerspectiveCamera(60,innerWidth/innerHeight,.1,500);
+const renderer=new THREE.WebGLRenderer({antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.setSize(innerWidth,innerHeight);
+renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+document.body.appendChild(renderer.domElement);
+
+scene.add(new THREE.HemisphereLight(0xcbd5e1,0x1e293b,1.2));
+const sun=new THREE.DirectionalLight(0xffffff,1.35);sun.position.set(35,75,25);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);scene.add(sun);
+const floor=new THREE.Mesh(new THREE.PlaneGeometry(180,180),new THREE.MeshStandardMaterial({color:0x111c2e,roughness:.9}));
+floor.rotation.x=-Math.PI/2;floor.receiveShadow=true;scene.add(floor);
+scene.add(new THREE.GridHelper(180,45,0x2563eb,0x263449));
+
+const buildings=[[-27,-25,14,13,17],[29,-24,17,11,14],[-24,30,16,16,14],[36,22,12,9,18],[2,-48,22,12,10]];
+buildings.forEach(([x,z,w,h,d])=>{const b=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),new THREE.MeshStandardMaterial({color:0x334155}));b.position.set(x,h/2,z);b.castShadow=true;b.receiveShadow=true;scene.add(b)});
+function makeMarker(color,label){
+ const group=new THREE.Group();
+ const disk=new THREE.Mesh(new THREE.CylinderGeometry(2.3,2.3,.16,32),new THREE.MeshStandardMaterial({color,emissive:color,emissiveIntensity:.16}));
+ disk.position.y=.1;group.add(disk);
+ const pole=new THREE.Mesh(new THREE.CylinderGeometry(.07,.07,3,8),new THREE.MeshStandardMaterial({color}));pole.position.y=1.65;group.add(pole);
+ const ball=new THREE.Mesh(new THREE.SphereGeometry(.48,16,12),new THREE.MeshStandardMaterial({color,emissive:color,emissiveIntensity:.3}));ball.position.y=3.25;group.add(ball);
+ const canvas=document.createElement("canvas");canvas.width=256;canvas.height=80;
+ const ctx=canvas.getContext("2d");ctx.fillStyle="#0f172a";ctx.fillRect(0,0,256,80);ctx.fillStyle="#fff";ctx.font="bold 32px sans-serif";ctx.textAlign="center";ctx.fillText(label,128,52);
+ const tex=new THREE.CanvasTexture(canvas);const sprite=new THREE.Sprite(new THREE.SpriteMaterial({map:tex,transparent:true}));sprite.scale.set(6,1.9,1);sprite.position.y=5;group.add(sprite);
+ scene.add(group);return group;
+}
+let pickup=null,pickupMarker=null,deliveries=[],mode="pickup";
+function parcelMesh(color=0xf59e0b){
+ const g=new THREE.Group();const box=new THREE.Mesh(new THREE.BoxGeometry(.85,.7,.85),new THREE.MeshStandardMaterial({color,roughness:.8}));box.castShadow=true;g.add(box);
+ const band=new THREE.Mesh(new THREE.BoxGeometry(.9,.12,.9),new THREE.MeshStandardMaterial({color:0x7c2d12}));g.add(band);
+ return g;
+}
+const drone=new THREE.Group(),tilt=new THREE.Group();drone.add(tilt);scene.add(drone);
+const fuselage=new THREE.Mesh(new THREE.BoxGeometry(1.25,.38,1.55),new THREE.MeshStandardMaterial({color:0xfacc15,metalness:.3,roughness:.35}));fuselage.castShadow=true;tilt.add(fuselage);
+const nose=new THREE.Mesh(new THREE.BoxGeometry(.55,.18,.28),new THREE.MeshBasicMaterial({color:0xef4444}));nose.position.z=-.85;tilt.add(nose);
+const rotors=[];
+[[-1.2,-1.1],[1.2,-1.1],[-1.2,1.1],[1.2,1.1]].forEach(([x,z])=>{
+ const arm=new THREE.Mesh(new THREE.BoxGeometry(.14,.1,1.8),new THREE.MeshStandardMaterial({color:0x1e293b}));arm.position.set(x*.45,0,z*.45);arm.rotation.y=x*z>0?Math.PI/4:-Math.PI/4;tilt.add(arm);
+ const r=new THREE.Mesh(new THREE.CylinderGeometry(.65,.65,.035,20),new THREE.MeshBasicMaterial({color:0x38bdf8,transparent:true,opacity:.6}));r.position.set(x,.25,z);tilt.add(r);rotors.push(r);
+});
+const carriedParcel=parcelMesh();carriedParcel.position.y=-.85;carriedParcel.visible=false;tilt.add(carriedParcel);
+drone.position.set(0,.5,0);
+
+const raycaster=new THREE.Raycaster(),pointer=new THREE.Vector2();
+function groundClick(e){
+ if(e.target.closest("#top")||e.target.closest("#controls"))return;
+ pointer.x=e.clientX/innerWidth*2-1;pointer.y=-(e.clientY/innerHeight)*2+1;
+ raycaster.setFromCamera(pointer,camera);
+ const hit=raycaster.intersectObject(floor)[0];if(!hit)return;
+ const x=THREE.MathUtils.clamp(hit.point.x,-82,82),z=THREE.MathUtils.clamp(hit.point.z,-82,82);
+ if(mode==="pickup"){
+  if(pickupMarker)scene.remove(pickupMarker);
+  pickup={x,z};pickupMarker=makeMarker(0x0284c7,"PICKUP");
+  pickupMarker.position.set(x,0,z);toast("Pickup point set");
+ }else{
+  const id=deliveries.length+1;const marker=makeMarker(0xf97316,"DROP "+id);marker.position.set(x,0,z);
+  deliveries.push({x,z,marker,done:false});toast("Delivery point "+id+" added");
+ }
+ renderLocations();
+}
+renderer.domElement.addEventListener("pointerdown",groundClick);
+function toast(t){const el=document.getElementById("toast");el.textContent=t;el.style.display="block";clearTimeout(toast.timer);toast.timer=setTimeout(()=>el.style.display="none",1700)}
+function renderLocations(){
+ const el=document.getElementById("locations");
+ let out=`<div class="loc"><span>🔵 Pickup: ${pickup?`(${pickup.x.toFixed(0)}, ${pickup.z.toFixed(0)})`:"Not set"}</span></div>`;
+ if(!deliveries.length)out+="<div class='loc'>No delivery points yet.</div>";
+ deliveries.forEach((d,i)=>{out+=`<div class="loc"><span>${d.done?"🟢":"🟠"} Drop ${i+1}: (${d.x.toFixed(0)}, ${d.z.toFixed(0)}) ${d.done?"✓":""}</span><button data-remove="${i}">Remove</button></div>`});
+ el.innerHTML=out;
+ el.querySelectorAll("[data-remove]").forEach(b=>b.addEventListener("click",()=>{if(running)return;const i=+b.dataset.remove;scene.remove(deliveries[i].marker);deliveries.splice(i,1);deliveries.forEach((d,j)=>{scene.remove(d.marker);d.marker=makeMarker(d.done?0x22c55e:0xf97316,d.done?"DONE":"DROP "+(j+1));d.marker.position.set(d.x,0,d.z)});renderLocations()}));
+ document.getElementById("progress").textContent=`${deliveries.filter(d=>d.done).length} / ${deliveries.length}`;
+}
+document.getElementById("pickupMode").onclick=()=>{mode="pickup";setModeButtons();toast("Click ground to set pickup")};
+document.getElementById("deliveryMode").onclick=()=>{mode="delivery";setModeButtons();toast("Click ground to add delivery")};
+function setModeButtons(){document.getElementById("pickupMode").classList.toggle("active",mode==="pickup");document.getElementById("deliveryMode").classList.toggle("active",mode==="delivery")}
+
+let running=false,paused=false,phase="idle",targetIndex=0,hasParcel=false,parcelOnGround=null,cameraMode=0;
+let routeTarget=null;
+function setMission(t){document.getElementById("mission").textContent=t}
+function setStatus(t){document.getElementById("status").textContent=t}
+function moveTo(x,y,z,next){routeTarget={x,y,z,next}}
+function startMission(){
+ if(!pickup||!deliveries.length){setMission("Please set one pickup point and at least one delivery point first.");return}
+ if(deliveries.every(d=>d.done)){setMission("All deliveries completed. Reset mission to run again.");return}
+ running=true;paused=false;targetIndex=deliveries.findIndex(d=>!d.done);phase="toPickup";
+ moveTo(pickup.x,6,pickup.z,"pickup");
+ setStatus("EN ROUTE");setMission("Drone flying to pickup point…");
+}
+document.getElementById("start").onclick=startMission;
+document.getElementById("pause").onclick=()=>{if(!running)return;paused=!paused;document.getElementById("pause").textContent=paused?"▶ Resume":"Ⅱ Pause";setStatus(paused?"PAUSED":"IN FLIGHT")};
+function resetMission(){
+ running=false;paused=false;phase="idle";targetIndex=0;hasParcel=false;routeTarget=null;
+ carriedParcel.visible=false;if(parcelOnGround){scene.remove(parcelOnGround);parcelOnGround=null}
+ deliveries.forEach(d=>{d.done=false;d.marker.material?.color?.setHex?.(0xf97316)});
+ deliveries.forEach((d,i)=>{scene.remove(d.marker);d.marker=makeMarker(0xf97316,"DROP "+(i+1));d.marker.position.set(d.x,0,d.z)});
+ drone.position.set(0,.5,0);drone.rotation.set(0,0,0);tilt.rotation.set(0,0,0);renderLocations();setStatus("IDLE");setMission("Mission reset. Press Start deliveries when ready.");
+ document.getElementById("pause").textContent="Ⅱ Pause";
+}
+document.getElementById("reset").onclick=resetMission;
+document.getElementById("clear").onclick=()=>{if(running){toast("Pause and reset before clearing locations");return}if(pickupMarker)scene.remove(pickupMarker);pickup=null;pickupMarker=null;deliveries.forEach(d=>scene.remove(d.marker));deliveries=[];renderLocations();setMission("Set a pickup point and delivery points on the ground.")};
+
+function completeDrop(){
+ hasParcel=false;carriedParcel.visible=false;
+ if(parcelOnGround)scene.remove(parcelOnGround);
+ parcelOnGround=parcelMesh(0x22c55e);parcelOnGround.position.set(deliveries[targetIndex].x,.45,deliveries[targetIndex].z);scene.add(parcelOnGround);
+ deliveries[targetIndex].done=true;
+ const old=deliveries[targetIndex].marker;scene.remove(old);deliveries[targetIndex].marker=makeMarker(0x22c55e,"DONE");deliveries[targetIndex].marker.position.set(deliveries[targetIndex].x,0,deliveries[targetIndex].z);
+ renderLocations();
+ setMission(`Parcel delivered to location ${targetIndex+1}. Returning to pickup…`);
+ phase="returnPickup";moveTo(pickup.x,6,pickup.z,"pickupAgain");
+}
+function arrive(next){
+ routeTarget=null;
+ if(next==="pickup"||next==="pickupAgain"){
+  hasParcel=true;carriedParcel.visible=true;
+  if(parcelOnGround){scene.remove(parcelOnGround);parcelOnGround=null}
+  phase="toDrop";moveTo(deliveries[targetIndex].x,6,deliveries[targetIndex].z,"drop");
+  setMission(`Parcel picked up. Flying to delivery location ${targetIndex+1} of ${deliveries.length}…`);
+ }else if(next==="drop"){
+  drone.position.y=1.3;completeDrop();
+ }else if(next==="finish"){
+  running=false;phase="complete";setStatus("COMPLETED");setMission("🎉 All parcels delivered successfully!");toast("All deliveries completed");
+ }
+}
+const keys={};window.addEventListener("keydown",e=>{if(["ArrowUp","ArrowDown","ArrowLeft","ArrowRight"].includes(e.code))e.preventDefault();keys[e.code]=true;if(e.code==="KeyC")cameraMode=(cameraMode+1)%2});
+window.addEventListener("keyup",e=>keys[e.code]=false);window.addEventListener("blur",()=>Object.keys(keys).forEach(k=>keys[k]=false));
+const clock=new THREE.Clock(),up=new THREE.Vector3(0,1,0);
+function animate(){
+ requestAnimationFrame(animate);const dt=Math.min(clock.getDelta(),.04);
+ if(running&&!paused&&routeTarget){
+  const dx=routeTarget.x-drone.position.x,dy=routeTarget.y-drone.position.y,dz=routeTarget.z-drone.position.z;
+  const dist=Math.hypot(dx,dy,dz),step=Math.min(1,7*dt/Math.max(dist,.0001));
+  drone.position.x+=dx*step;drone.position.y+=dy*step;drone.position.z+=dz*step;
+  const desiredYaw=Math.atan2(-dx,-dz);let diff=((desiredYaw-drone.rotation.y+Math.PI*3)%(Math.PI*2))-Math.PI;drone.rotation.y+=diff*Math.min(1,3*dt);
+  if(dist<.45)arrive(routeTarget.next);
+ }
+ // Manual control is available when the autonomous mission is not moving.
+ if(!running||paused){
+  const throttle=(keys.KeyW?1:0)-(keys.KeyS?1:0),pitch=(keys.ArrowUp?1:0)-(keys.ArrowDown?1:0),roll=(keys.ArrowRight?1:0)-(keys.ArrowLeft?1:0),yaw=(keys.KeyA?1:0)-(keys.KeyD?1:0);
+  drone.rotation.y+=yaw*1.5*dt;
+  const f=new THREE.Vector3(-Math.sin(drone.rotation.y),0,-Math.cos(drone.rotation.y)),r=new THREE.Vector3(Math.cos(drone.rotation.y),0,-Math.sin(drone.rotation.y));
+  drone.position.addScaledVector(f,pitch*8*dt);drone.position.addScaledVector(r,roll*8*dt);drone.position.y=Math.max(.5,drone.position.y+throttle*6*dt);
+  drone.position.x=THREE.MathUtils.clamp(drone.position.x,-85,85);drone.position.z=THREE.MathUtils.clamp(drone.position.z,-85,85);
+ }
+ tilt.rotation.x=THREE.MathUtils.lerp(tilt.rotation.x,(keys.ArrowUp?-.18:keys.ArrowDown?.18:0),.12);
+ tilt.rotation.z=THREE.MathUtils.lerp(tilt.rotation.z,(keys.ArrowRight?-.18:keys.ArrowLeft?.18:0),.12);
+ rotors.forEach(r=>r.rotation.y+=32*dt);
+ if(cameraMode===0){const off=new THREE.Vector3(0,5,10).applyAxisAngle(up,drone.rotation.y);camera.position.lerp(drone.position.clone().add(off),.1);camera.lookAt(drone.position)}
+ else{camera.position.set(drone.position.x,drone.position.y+16,drone.position.z);camera.lookAt(drone.position.x,0,drone.position.z)}
+ document.getElementById("alt").textContent=Math.max(0,drone.position.y-.5).toFixed(1)+" m";
+ document.getElementById("speed").textContent=(running&&!paused&&routeTarget?7:0).toFixed(1)+" m/s";
+ if(running&&!paused)setStatus(phase==="toPickup"||phase==="returnPickup"?"COLLECTING / RETURNING":"DELIVERING");
+ renderer.render(scene,camera);
+}
+window.addEventListener("resize",()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);renderer.setPixelRatio(Math.min(devicePixelRatio,2))});
+camera.position.set(0,13,24);camera.lookAt(0,0,0);renderLocations();animate();
+</script>
+</body>
+</html>

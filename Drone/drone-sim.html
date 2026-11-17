@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>3D Industrial STEM Drone Simulator</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      overflow: hidden; background: #0b1120;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      color: #f8fafc;
+    }
+    canvas { display: block; }
+    #hud, #controls {
+      position: absolute; z-index: 2; background: rgba(15, 23, 42, .88);
+      border: 1px solid #334155; border-radius: 10px; backdrop-filter: blur(6px);
+    }
+    #hud { top: 16px; left: 16px; width: 300px; padding: 16px; pointer-events: none; }
+    h1 { font-size: 16px; color: #38bdf8; margin-bottom: 10px; letter-spacing: .5px; }
+    .stat { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; margin-bottom: 6px; }
+    .val { font-family: monospace; color: #22c55e; font-weight: bold; }
+    .mission-box { margin-top: 12px; padding-top: 10px; border-top: 1px solid #334155; font-size: 13px; }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; background: #1e293b; color: #fbbf24; }
+    #controls { bottom: 16px; left: 16px; max-width: min(650px, calc(100vw - 32px)); padding: 12px 16px; font-size: 12px; line-height: 1.7; color: #cbd5e1; }
+    kbd { background: #1e293b; border: 1px solid #475569; border-radius: 4px; padding: 1px 6px; font-family: monospace; color: #f8fafc; }
+    #help { position:absolute; right:16px; bottom:16px; z-index:2; color:#94a3b8; font-size:11px; text-align:right; }
+    @media (max-width: 600px) {
+      #hud { top: 8px; left: 8px; width: 255px; padding: 11px; }
+      h1 { font-size: 13px; }
+      .stat, .mission-box { font-size: 11px; }
+      #controls { left: 8px; bottom: 8px; font-size: 10px; padding: 8px 10px; }
+      #help { display:none; }
+    }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+</head>
+<body>
+  <div id="hud">
+    <h1>INDUSTRIAL STEM DRONE SIM</h1>
+    <div class="stat"><span>Altitude (AGL):</span><span class="val" id="alt">0.0 m</span></div>
+    <div class="stat"><span>Ground Speed:</span><span class="val" id="spd">0.0 m/s</span></div>
+    <div class="stat"><span>Heading (Yaw):</span><span class="val" id="hdg">000°</span></div>
+    <div class="stat"><span>Payload Status:</span><span class="val" id="payload-stat">ATTACHED</span></div>
+    <div class="mission-box">
+      <div><strong>Surveying Waypoints:</strong> <span id="wp-count" class="val">0 / 4</span></div>
+      <div style="margin-top:6px"><strong>Cargo Mission:</strong> <span id="cargo-msg" class="badge">Deliver to Orange Pad</span></div>
+    </div>
+  </div>
+
+  <div id="controls">
+    <strong>Mode 2 Keyboard Controls</strong><br>
+    Left Stick: <kbd>W</kbd>/<kbd>S</kbd> Throttle (Altitude) &nbsp;|&nbsp; <kbd>A</kbd>/<kbd>D</kbd> Yaw (Rotate)<br>
+    Right Stick: <kbd>↑</kbd>/<kbd>↓</kbd> Pitch (Forward/Back) &nbsp;|&nbsp; <kbd>←</kbd>/<kbd>→</kbd> Roll (Strafe)<br>
+    Actions: <kbd>Space</kbd> Drop Payload &nbsp;|&nbsp; <kbd>C</kbd> Toggle Camera &nbsp;|&nbsp; <kbd>R</kbd> Reset
+  </div>
+  <div id="help">Fly through all 4 green rings, then deliver the cargo to the orange pad.</div>
+
+  <script>
+    // Scene, camera and renderer
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x0f172a);
+    scene.fog = new THREE.FogExp2(0x0f172a, 0.0045);
+
+    const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 500);
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    document.body.appendChild(renderer.domElement);
+
+    // Lighting and ground
+    scene.add(new THREE.HemisphereLight(0x94a3b8, 0x1e293b, 1.15));
+    const dirLight = new THREE.DirectionalLight(0xffffff, 1.4);
+    dirLight.position.set(40, 80, 30);
+    dirLight.castShadow = true;
+    dirLight.shadow.mapSize.set(2048, 2048);
+    dirLight.shadow.camera.left = -100;
+    dirLight.shadow.camera.right = 100;
+    dirLight.shadow.camera.top = 100;
+    dirLight.shadow.camera.bottom = -100;
+    scene.add(dirLight);
+
+    const ground = new THREE.Mesh(
+      new THREE.PlaneGeometry(200, 200),
+      new THREE.MeshStandardMaterial({ color: 0x0b1120, roughness: 0.92 })
+    );
+    ground.rotation.x = -Math.PI / 2;
+    ground.receiveShadow = true;
+    scene.add(ground);
+    scene.add(new THREE.GridHelper(200, 50, 0x38bdf8, 0x263449));
+
+    // Warehouse obstacles
+    const obstacles = [
+      { x: -25, z: -25, w: 12, h: 14, d: 18 },
+      { x: 30, z: -20, w: 16, h: 10, d: 12 },
+      { x: -20, z: 30, w: 14, h: 18, d: 14 }
+    ];
+    const buildingMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.72 });
+    obstacles.forEach(o => {
+      const building = new THREE.Mesh(new THREE.BoxGeometry(o.w, o.h, o.d), buildingMat);
+      building.position.set(o.x, o.h / 2, o.z);
+      building.castShadow = true;
+      building.receiveShadow = true;
+      scene.add(building);
+      const roofLine = new THREE.EdgesGeometry(building.geometry);
+      const outline = new THREE.LineSegments(roofLine, new THREE.LineBasicMaterial({ color: 0x64748b }));
+      outline.position.copy(building.position);
+      scene.add(outline);
+    });
+
+    function createPad(x, z, color) {
+      const pad = new THREE.Mesh(
+        new THREE.CylinderGeometry(3.5, 3.5, 0.15, 32),
+        new THREE.MeshStandardMaterial({ color, roughness: 0.55, metalness: 0.1 })
+      );
+      pad.position.set(x, 0.08, z);
+      pad.receiveShadow = true;
+      scene.add(pad);
+      return pad;
+    }
+    createPad(0, 0, 0x0284c7);
+    const dropZone = createPad(35, 35, 0xf97316);
+
+    // Survey waypoints
+    const waypointCoords = [
+      { x: -25, y: 18, z: -25 },
+      { x: 30, y: 14, z: -20 },
+      { x: 35, y: 12, z: 35 },
+      { x: -20, y: 22, z: 30 }
+    ];
+    const waypoints = waypointCoords.map((pt, i) => {
+      const ring = new THREE.Mesh(
+        new THREE.TorusGeometry(2.2, 0.15, 12, 32),
+        new THREE.MeshBasicMaterial({ color: 0x22c55e })
+      );
+      ring.position.set(pt.x, pt.y, pt.z);
+      ring.userData.index = i;
+      scene.add(ring);
+      return { mesh: ring, scanned: false };
+    });
+
+    // Quadcopter model
+    const drone = new THREE.Group();
+    const tiltGroup = new THREE.Group();
+    drone.add(tiltGroup);
+
+    const body = new THREE.Mesh(
+      new THREE.BoxGeometry(1.2, 0.35, 1.6),
+      new THREE.MeshStandardMaterial({ color: 0xfacc15, metalness: 0.35, roughness: 0.3 })
+    );
+    body.castShadow = true;
+    tiltGroup.add(body);
+
+    const nose = new THREE.Mesh(
+      new THREE.BoxGeometry(0.6, 0.2, 0.3),
+      new THREE.MeshBasicMaterial({ color: 0xef4444 })
+    );
+    nose.position.set(0, 0, -0.85);
+    tiltGroup.add(nose);
+
+    const rotors = [];
+    const armPositions = [
+      [-1.1, 0.1, -1.1], [1.1, 0.1, -1.1],
+      [-1.1, 0.1, 1.1], [1.1, 0.1, 1.1]
+    ];
+    armPositions.forEach(([ax, ay, az]) => {
+      const arm = new THREE.Mesh(
+        new THREE.BoxGeometry(0.15, 0.1, 1.6),
+        new THREE.MeshStandardMaterial({ color: 0x1e293b })
+      );
+      arm.position.set(ax * 0.5, 0, az * 0.5);
+      arm.rotation.y = ax * az > 0 ? Math.PI / 4 : -Math.PI / 4;
+      tiltGroup.add(arm);
+
+      const rotor = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.65, 0.65, 0.035, 20),
+        new THREE.MeshBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.58 })
+      );
+      rotor.position.set(ax, ay + 0.15, az);
+      tiltGroup.add(rotor);
+      rotors.push(rotor);
+    });
+
+    const payload = new THREE.Mesh(
+      new THREE.BoxGeometry(0.7, 0.5, 0.7),
+      new THREE.MeshStandardMaterial({ color: 0xf97316, roughness: 0.5 })
+    );
+    payload.position.set(0, -0.45, 0);
+    tiltGroup.add(payload);
+    drone.position.set(0, 0.4, 0);
+    scene.add(drone);
+
+    // Flight state
+    const keys = Object.create(null);
+    const velocity = new THREE.Vector3();
+    let yaw = 0;
+    let cameraMode = 0; // 0 = chase, 1 = downward survey view
+    let payloadAttached = true;
+    let payloadFalling = false;
+    let payloadVelY = 0;
+    let scannedCount = 0;
+    let payloadLanded = false;
+
+    function releasePayload() {
+      if (!payloadAttached) return;
+      payloadAttached = false;
+      payloadFalling = true;
+      payloadVelY = 0;
+      const worldPos = new THREE.Vector3();
+      payload.getWorldPosition(worldPos);
+      tiltGroup.remove(payload);
+      scene.add(payload);
+      payload.position.copy(worldPos);
+      document.getElementById("payload-stat").textContent = "RELEASED";
+    }
+
+    function resetSim() {
+      drone.position.set(0, 0.4, 0);
+      drone.rotation.set(0, 0, 0);
+      tiltGroup.rotation.set(0, 0, 0);
+      velocity.set(0, 0, 0);
+      yaw = 0;
+      scannedCount = 0;
+      waypoints.forEach(wp => {
+        wp.scanned = false;
+        wp.mesh.material.color.setHex(0x22c55e);
+      });
+      if (!payloadAttached) {
+        scene.remove(payload);
+        tiltGroup.add(payload);
+        payload.position.set(0, -0.45, 0);
+        payloadAttached = true;
+      }
+      payloadFalling = false;
+      payloadLanded = false;
+      payloadVelY = 0;
+      cameraMode = 0;
+      Object.keys(keys).forEach(k => keys[k] = false);
+      document.getElementById("payload-stat").textContent = "ATTACHED";
+      document.getElementById("wp-count").textContent = "0 / 4";
+      const msg = document.getElementById("cargo-msg");
+      msg.textContent = "Deliver to Orange Pad";
+      msg.style.color = "#fbbf24";
+      msg.style.background = "#1e293b";
+    }
+
+    window.addEventListener("keydown", event => {
+      if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Space"].includes(event.code)) event.preventDefault();
+      if (event.repeat && ["KeyC", "KeyR", "Space"].includes(event.code)) return;
+      keys[event.code] = true;
+      if (event.code === "Space") releasePayload();
+      if (event.code === "KeyC") cameraMode = (cameraMode + 1) % 2;
+      if (event.code === "KeyR") resetSim();
+    });
+    window.addEventListener("keyup", event => { keys[event.code] = false; });
+    window.addEventListener("blur", () => { Object.keys(keys).forEach(k => keys[k] = false); });
+
+    // Main simulation loop
+    const clock = new THREE.Clock();
+    const worldUp = new THREE.Vector3(0, 1, 0);
+
+    function animate() {
+      requestAnimationFrame(animate);
+      const dt = Math.min(clock.getDelta(), 0.05);
+
+      const throttle = (keys.KeyW ? 1 : 0) - (keys.KeyS ? 1 : 0);
+      const yawInput = (keys.KeyA ? 1 : 0) - (keys.KeyD ? 1 : 0);
+      const pitchInput = (keys.ArrowUp ? 1 : 0) - (keys.ArrowDown ? 1 : 0);
+      const rollInput = (keys.ArrowRight ? 1 : 0) - (keys.ArrowLeft ? 1 : 0);
+
+      yaw += yawInput * 1.8 * dt;
+      drone.rotation.y = yaw;
+
+      const forward = new THREE.Vector3(-Math.sin(yaw), 0, -Math.cos(yaw));
+      const right = new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw));
+      const acceleration = new THREE.Vector3(0, throttle * 18, 0);
+      acceleration.addScaledVector(forward, pitchInput * 22);
+      acceleration.addScaledVector(right, rollInput * 22);
+
+      velocity.addScaledVector(acceleration, dt);
+      velocity.multiplyScalar(Math.pow(0.94, dt * 60));
+      drone.position.addScaledVector(velocity, dt);
+
+      if (drone.position.y < 0.4) {
+        drone.position.y = 0.4;
+        velocity.y = Math.max(0, velocity.y);
+      }
+      drone.position.x = THREE.MathUtils.clamp(drone.position.x, -95, 95);
+      drone.position.z = THREE.MathUtils.clamp(drone.position.z, -95, 95);
+
+      tiltGroup.rotation.x = THREE.MathUtils.lerp(tiltGroup.rotation.x, -pitchInput * 0.28, 0.15);
+      tiltGroup.rotation.z = THREE.MathUtils.lerp(tiltGroup.rotation.z, -rollInput * 0.28, 0.15);
+
+      const rotorSpeed = drone.position.y > 0.45 || throttle > 0 ? 35 : 8;
+      rotors.forEach(rotor => { rotor.rotation.y += rotorSpeed * dt; });
+
+      // Payload drop and landing check
+      if (payloadFalling) {
+        payloadVelY -= 9.81 * dt;
+        payload.position.y += payloadVelY * dt;
+        if (payload.position.y <= 0.35) {
+          payload.position.y = 0.35;
+          payloadFalling = false;
+          payloadLanded = true;
+          const horizontalDistance = Math.hypot(payload.position.x - dropZone.position.x, payload.position.z - dropZone.position.z);
+          const msg = document.getElementById("cargo-msg");
+          if (horizontalDistance <= 3.8) {
+            msg.textContent = "DELIVERY SUCCESS!";
+            msg.style.color = "#22c55e";
+          } else {
+            msg.textContent = `MISSED PAD (${horizontalDistance.toFixed(1)} m off)`;
+            msg.style.color = "#ef4444";
+          }
+        }
+      }
+
+      // Waypoint scan
+      waypoints.forEach(wp => {
+        wp.mesh.rotation.y += 1.5 * dt;
+        if (!wp.scanned && drone.position.distanceTo(wp.mesh.position) < 3.0) {
+          wp.scanned = true;
+          wp.mesh.material.color.setHex(0x38bdf8);
+          scannedCount++;
+          document.getElementById("wp-count").textContent = `${scannedCount} / 4`;
+        }
+      });
+
+      // Camera tracking
+      if (cameraMode === 0) {
+        const chaseOffset = new THREE.Vector3(0, 3.2, 7.5).applyAxisAngle(worldUp, yaw);
+        camera.position.lerp(drone.position.clone().add(chaseOffset), 0.12);
+        camera.lookAt(drone.position.clone().add(new THREE.Vector3(0, 0.5, 0)));
+      } else {
+        camera.position.set(drone.position.x, drone.position.y + 0.2, drone.position.z);
+        camera.lookAt(drone.position.x, 0, drone.position.z);
+      }
+
+      // HUD telemetry
+      const groundSpeed = Math.hypot(velocity.x, velocity.z);
+      const headingDeg = (((-yaw * 180 / Math.PI) % 360) + 360) % 360;
+      document.getElementById("alt").textContent = `${(drone.position.y - 0.4).toFixed(1)} m`;
+      document.getElementById("spd").textContent = `${groundSpeed.toFixed(1)} m/s`;
+      document.getElementById("hdg").textContent = `${Math.round(headingDeg).toString().padStart(3, "0")}°`;
+
+      renderer.render(scene, camera);
+    }
+
+    window.addEventListener("resize", () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    });
+
+    resetSim();
+    camera.position.set(0, 4, 9);
+    camera.lookAt(0, 1, 0);
+    animate();
+  </script>
+</body>
+</html>
