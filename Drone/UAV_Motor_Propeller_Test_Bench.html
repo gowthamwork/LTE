@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>UAV Motor &amp; Propeller Test Bench</title>
+<style>
+:root{--bg:#0a111a;--p:#111b27;--p2:#16243436;--bd:#223349;--tx:#d6e2ef;--mu:#8aa0b8;--ac:#19d3b6;--am:#fbbf24;--rd:#f87171;--gn:#4ade80;--bl:#60a5fa;--pk:#f472b6}
+*{box-sizing:border-box}html,body{margin:0;background:var(--bg);color:var(--tx);font:14px/1.45 system-ui,Segoe UI,Roboto,sans-serif}
+header.top{padding:14px 22px;border-bottom:1px solid var(--bd);background:linear-gradient(180deg,#0f1b2a,#0a111a)}
+header.top h1{margin:0;font-size:20px;letter-spacing:.3px}header.top p{margin:3px 0 0;color:var(--mu);font-size:13px;max-width:1100px}
+.wrap{max-width:1500px;margin:0 auto;padding:14px 16px 40px;display:grid;gap:14px}
+.two{display:grid;grid-template-columns:1.65fr 1fr;gap:14px}.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:1050px){.two,.grid2{grid-template-columns:1fr}}
+.card{background:var(--p);border:1px solid var(--bd);border-radius:10px;padding:12px 14px;min-width:0}
+.card h2{margin:0 0 8px;font-size:12px;letter-spacing:1.4px;text-transform:uppercase;color:var(--ac);font-weight:700}
+canvas{display:block;width:100%;height:auto;background:#0b1522;border-radius:8px;border:1px solid #1a2b40}
+.cvbox{position:relative}
+#banner{position:absolute;left:10px;top:10px;display:flex;gap:6px;flex-wrap:wrap;max-width:70%}
+.chip{padding:3px 9px;border-radius:99px;font:700 11px ui-monospace,Consolas,monospace;letter-spacing:.5px}
+.chip.bad{background:#7f1d1d;color:#fecaca;animation:bl 0.7s infinite alternate}.chip.warn{background:#78350f;color:#fde68a}.chip.ok{background:#064e3b;color:#a7f3d0}
+@keyframes bl{from{opacity:1}to{opacity:.45}}
+.ctl{display:grid;grid-template-columns:minmax(300px,2fr) 3fr;gap:18px;align-items:center}
+@media(max-width:900px){.ctl{grid-template-columns:1fr}}
+.thr{display:flex;flex-direction:column;gap:6px}
+.thr .big{font:700 34px ui-monospace,Consolas,monospace;color:var(--ac)}
+input[type=range]{width:100%;accent-color:var(--ac);height:22px}
+.btns{display:flex;gap:6px;flex-wrap:wrap}
+button,select{background:#183049;color:var(--tx);border:1px solid #2b4a6b;border-radius:7px;padding:6px 11px;font:600 12px system-ui;cursor:pointer}
+button:hover{border-color:var(--ac);background:#1d3a58}button.pri{background:#0d5c52;border-color:#14b8a6}button.dng{background:#5b1d1d;border-color:#b91c1c}
+button.on{background:#0d5c52;border-color:var(--ac)}
+.tiles{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}@media(max-width:1000px){.tiles{grid-template-columns:repeat(2,1fr)}}
+.tile{background:#0d1824;border:1px solid #1c2e44;border-radius:8px;padding:7px 10px}
+.tile .l{font-size:10.5px;letter-spacing:1px;text-transform:uppercase;color:var(--mu)}
+.tile .v{font:700 22px ui-monospace,Consolas,monospace}.tile .v small{font-size:12px;color:var(--mu);font-weight:500}.tile .s{font-size:11px;color:var(--mu)}
+.prm{display:grid;grid-template-columns:150px 1fr 74px;gap:8px;align-items:center;margin:3px 0}
+.prm label{font-size:12.5px}.prm output{font:600 12px ui-monospace,Consolas,monospace;text-align:right;color:var(--ac)}
+.hint{font-size:11px;color:var(--mu);margin:-1px 0 7px;grid-column:1/-1}
+.kv{display:flex;justify-content:space-between;gap:10px;border-bottom:1px solid #1a2a3d;padding:3px 0;font-size:13px}.kv span{color:var(--mu)}.kv b{font-family:ui-monospace,Consolas,monospace}
+.tour{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}
+.tbody{background:#0d1824;border:1px solid #1c2e44;border-radius:8px;padding:10px 12px;min-height:250px;font-size:13px}
+.tbody h3{margin:0 0 6px;font-size:15px;color:#fff}.eq{font-family:ui-monospace,Consolas,monospace;font-size:12.5px;background:#08111b;border-left:3px solid var(--ac);padding:5px 9px;margin:6px 0;color:#bfe9e1}
+.exp{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:10px}.exp div{background:#0d1824;border:1px solid #1c2e44;border-radius:8px;padding:9px 12px;font-size:13px}.exp b{color:var(--am)}
+.legend{display:flex;gap:12px;flex-wrap:wrap;font-size:11.5px;color:var(--mu);margin-top:6px}.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:-1px}
+.mu{color:var(--mu)}.note{font-size:12px;color:var(--mu)}
+</style></head><body>
+<header class="top"><h1>UAV Motor &amp; Propeller Test Bench</h1>
+<p>A virtual thrust stand. Move the throttle and watch the whole power chain work in real time: battery → ESC → three-phase motor → propeller → air. Everything is animated and every number is calculated from real motor and propeller physics. Change any part and see what happens.</p></header>
+<div class="wrap">
+ <div class="two">
+  <div style="display:grid;gap:14px;align-content:start"><section class="card"><h2>Test stand · live</h2><div class="cvbox"><canvas id="cvScene"></canvas><div id="banner"></div></div>
+   <div class="legend"><span><i style="background:#fbbf24"></i>current flowing (speed = amps)</span><span><i style="background:#7dd3fc"></i>air pushed down by the prop</span><span><i style="background:#f87171"></i>heat</span><span class="note">Spin speed on screen is scaled so you can see it; real RPM is in the tiles.</span></div></section>
+   <section class="card"><h2>Live recorder (last 20 seconds)</h2><canvas id="cvStrip"></canvas></section></div>
+  <div style="display:grid;gap:14px;align-content:start"><section class="card"><h2>Inside the brushless motor</h2><canvas id="cvMotor"></canvas><canvas id="cvPhase" style="margin-top:8px"></canvas>
+   <div class="legend"><span><i style="background:#f87171"></i>N magnet / pole</span><span><i style="background:#60a5fa"></i>S magnet / pole</span><span><i style="background:#f59e0b"></i>phase A</span><span><i style="background:#22d3ee"></i>phase B</span><span><i style="background:#a78bfa"></i>phase C</span></div></section> <section class="card"><h2>How it works — guided tour</h2><div class="tour" id="tour"></div><div class="tbody" id="tbody"></div></section></div>
+ </div>
+
+ <section class="card ctl">
+  <div class="thr"><div class="mu" style="font-size:11px;letter-spacing:1px">THROTTLE (what the flight controller asks the ESC for)</div>
+   <div class="big" id="thrVal">0 %</div><input type="range" id="thr" min="0" max="100" step="0.5" value="0">
+   <div class="btns"><button data-t="0" class="dng">Stop</button><button data-t="25">25</button><button data-t="50">50</button><button data-t="75">75</button><button data-t="100">100</button><button id="bHover" class="pri">Hover point</button><button id="bRamp">Ramp test 0→100→0</button></div>
+   <div class="note">Keyboard: ↑ ↓ = ±2 %, PgUp/PgDn = ±10 %, 0 = stop</div></div>
+  <div>
+   <div class="btns" id="presets"></div>
+   <div class="btns" style="margin-top:8px;align-items:center"><span class="mu" style="font-size:12px">Battery &amp; heat time-lapse:</span>
+    <select id="warp"><option value="1">×1 (real time)</option><option value="10">×10</option><option value="60" selected>×60</option><option value="300">×300</option></select>
+    <label style="font-size:12.5px"><input type="checkbox" id="prot" checked> Protection (thermal + low-voltage cut-off)</label>
+    <button id="bReset">Replace motor · fresh battery · cool down</button></div>
+   <div class="note" style="margin-top:6px">Motor spin-up and thrust always run in real time. Only battery drain and heating are sped up by the time-lapse, so you can see a whole flight in a minute.</div>
+  </div>
+ </section>
+
+ <div class="tiles" id="tiles"></div>
+
+ <section class="card"><h2>Where does the battery’s power go?</h2><canvas id="cvFlow"></canvas></section>
+
+
+ <section class="card"><h2>Performance curves of this motor + propeller (dot = where you are now)</h2>
+  <div class="grid2"><canvas id="cvC1"></canvas><canvas id="cvC2"></canvas><canvas id="cvC3"></canvas><canvas id="cvC4"></canvas></div>
+  <div class="legend"><span><i style="background:#19d3b6"></i>at current battery charge</span><span><i style="background:#64748b"></i>with a fully charged battery</span><span><i style="background:#f87171"></i>limit / danger</span></div></section>
+
+ <div class="two" style="grid-template-columns:1fr 1fr">
+  <section class="card"><h2>Choose the parts</h2><div id="params"></div></section>
+  <section class="card"><h2>If this were a quadcopter (4 motors)</h2><div id="drone"></div>
+   <div class="note" style="margin-top:8px">The drone weight slider sets how much thrust each motor must give just to hover. The dashed line in the thrust chart shows it.</div></section>
+ </div>
+
+
+
+ <section class="card"><h2>Experiments to try</h2><div class="exp">
+  <div><b>1 · Find the hover point.</b> Press “Hover point”. How much throttle does the motor need just to lift ¼ of the drone? Now add weight with the slider — what happens to current and flight time?</div>
+  <div><b>2 · Bigger prop, same motor.</b> Raise the propeller diameter from 10 to 13 in. Thrust goes up — but so does the current. Watch the motor temperature.</div>
+  <div><b>3 · Overdrive it.</b> Click the “Overdriven” preset and push to 100 %. Watch current pass the red line, the motor glow, then smoke. Switch off Protection to let it burn.</div>
+  <div><b>4 · Drain a battery.</b> Hold 70 % at time-lapse ×300. Watch voltage sag grow and thrust fall as the battery empties, until the low-voltage cut-off.</div>
+  <div><b>5 · Efficiency sweet spot.</b> Run the ramp test and watch the efficiency chart (g/W). Why is a drone most efficient at low throttle?</div>
+  <div><b>6 · KV vs prop size.</b> Compare 2300 KV + 5 in against 400 KV + 13 in at the same thrust. Which draws fewer watts?</div>
+ </div></section>
+</div>
+<script>
+/*==== PHYSICS (DC motor + propeller + LiPo + thermal) ====*/
+const RHO=1.225,G=9.81;
+const clamp=(x,a,b)=>Math.max(a,Math.min(b,x)),lerp=(a,b,t)=>a+(b-a)*t;
+const CELLTAB=[[0,3.0],[.05,3.45],[.1,3.62],[.2,3.72],[.4,3.80],[.6,3.88],[.8,3.98],[.9,4.05],[1,4.15]];
+function cellV(s){s=clamp(s,0,1);for(let i=1;i<CELLTAB.length;i++){if(s<=CELLTAB[i][0]){const a=CELLTAB[i-1],b=CELLTAB[i];return a[1]+(b[1]-a[1])*(s-a[0])/(b[0]-a[0])}}return 4.15}
+const C0={KV:900,mg:60,D:10,pitch:4.5,cells:4,cap:4000,cR:25,W:1.5,amb:25};
+const C=Object.assign({},C0);
+let M={};
+function derive(){
+  const D=C.D*.0254,A=Math.PI*D*D/4,Ke=60/(2*Math.PI*C.KV);
+  const Rm25=.1*Math.pow(900/C.KV,2)*(60/C.mg),I0=.5*Math.pow(C.mg/60,.7)*Math.pow(C.KV/900,.5);
+  const mProp=.013*Math.pow(C.D/10,2.2),Jprop=mProp*D*D/12,Jrot=1.2e-5*Math.pow(C.mg/60,1.6);
+  const Ct=.07*(.55+.9*C.pitch/C.D),FM=.6,Cq=Math.pow(Ct,1.5)*Math.sqrt(2/Math.PI)/(2*Math.PI*FM);
+  const Imax_b=C.cR*C.cap/1000;
+  M={D,A,Ke,Kt:Ke,Rm25,I0,J:Jprop+Jrot,Ct,Cq,FM,Imax_b,Rint:C.cells*1.5/Imax_b,Imax_m:.5*C.mg,Ilim:.9*C.mg,Ibrk:.15*C.mg,Resc:.006,
+     Wh:C.cells*3.7*C.cap/1000,Tq0:Ke*I0,Cth:.4*C.mg+4,wref:(C.cells*3.9/Ke)*.85,mProp};
+}
+derive();
+const X={w:0,th:0,thE:0,Tm:25,soc:1,usedWh:0,duty:0,cmd:0,Vb:C.cells*4.15,Vf:C.cells*4.15,lvc:false,burnt:false,dead:false,prot:true,t:0};
+let R={};  // last-step results
+function thermalLimit(){if(!X.prot)return 1;return X.Tm<105?1:clamp(1-(X.Tm-105)/35,.2,1)}
+function physStep(h,warp){
+  const s=X;let d=s.cmd<.03?0:s.cmd;d=Math.min(d,thermalLimit());
+  if(s.burnt||s.dead||s.lvc)d=0;
+  s.duty+=clamp(d-s.duty,-h*40,h*8);
+  const Voc=C.cells*cellV(s.soc),Rm=M.Rm25*(1+.0039*(s.Tm-25));
+  let Vb=s.Vb,Im=0,Ib=0,Pesc=0;
+  for(let it=0;it<3;it++){
+    const Vm=s.duty*Vb;Im=(Vm-M.Ke*s.w)/Rm;if(Im<-M.Ibrk)Im=-M.Ibrk;if(Im>M.Ilim)Im=M.Ilim;
+    Pesc=Im*Im*M.Resc+.006*Vb*Math.abs(Im);
+    Ib=(Im>0?s.duty*Im:0)+Pesc/Math.max(Vb,1)+.04;
+    Vb=Math.max(.5,Voc-Ib*M.Rint);
+  }
+  s.Vb=Vb;s.Vf+=(Vb-s.Vf)*Math.min(1,h/.4);
+  if(s.prot){if(s.Vf/C.cells<3.0&&s.duty>.15)s.lvc=true;if(s.cmd<.03)s.lvc=false}else s.lvc=false;
+  const n=s.w/(2*Math.PI),Q=M.Cq*RHO*n*n*Math.pow(M.D,5);
+  const Tql=M.Tq0*Math.min(1,s.w/30),net=M.Kt*Im-Tql-Q;
+  s.w=Math.max(0,s.w+net/M.J*h);
+  const n2=s.w/(2*Math.PI),T=M.Ct*RHO*n2*n2*Math.pow(M.D,4);
+  const Pcu=Im*Im*Rm,Pfe=Tql*s.w,hc=.12+.35*clamp(s.w/M.wref,0,1);
+  if(!s.burnt)s.Tm+=(Pcu+Pfe-hc*(s.Tm-C.amb))/M.Cth*h*warp;
+  s.usedWh+=Vb*Ib*h*warp/3600;s.soc=clamp(1-s.usedWh/M.Wh,0,1);
+  if(s.soc<=0)s.dead=true;
+  if(!s.prot&&s.Tm>150)s.burnt=true;
+  s.t+=h;
+  const Pshaft=Q*s.w,Pideal=Math.min(Pshaft,Math.pow(T,1.5)/Math.sqrt(2*RHO*M.A)),Pbat=Voc*Ib;
+  R={Voc,Vb,Im,Ib,Q,T,w:s.w,rpm:s.w*60/(2*Math.PI),Pbat,Pel:Vb*Ib,pInt:Ib*Ib*M.Rint,pEsc:Pesc+.04*Vb,pCu:Math.max(0,Pcu),pFe:Pfe,pSpin:Math.max(0,s.w*net),
+     pShaft:Pshaft,pIdeal:Pideal,pProp:Pshaft-Pideal,vi:Math.sqrt(T/(2*RHO*M.A)),eff:Vb*Ib>1?T/G*1000/(Vb*Ib):0,Rm,duty:s.duty,net};
+}
+/* steady-state solver: what would the motor settle at for a given duty? */
+function steady(d,soc,Tm){
+  const Voc=C.cells*cellV(soc),Rm=M.Rm25*(1+.0039*(Tm-25));let Vb=Voc,w=0,Im=0,Ib=0;
+  for(let it=0;it<9;it++){
+    const Vm=d*Vb,f=x=>M.Kt*(Vm-M.Ke*x)/Rm-M.Tq0-M.Cq*RHO*Math.pow(x/(2*Math.PI),2)*Math.pow(M.D,5);
+    let lo=0,hi=Math.max(Vm/M.Ke,1e-6);
+    if(f(0)<=0)w=0;else{for(let k=0;k<36;k++){const m=(lo+hi)/2;f(m)>0?lo=m:hi=m}w=(lo+hi)/2}
+    Im=Math.max(0,(Vm-M.Ke*w)/Rm);const Pe=Im*Im*M.Resc+.006*Vb*Im;
+    Ib=d*Im+Pe/Math.max(Vb,1)+.04;Vb=Math.max(.5,Voc-Ib*M.Rint);
+  }
+  const n=w/(2*Math.PI),T=M.Ct*RHO*n*n*Math.pow(M.D,4),Pel=Vb*Ib;
+  return{w,rpm:w*60/(2*Math.PI),T,g:T/G*1000,Im,Ib,Vb,Pel,eff:Pel>1&&d>0?T/G*1000/Pel:0};
+}
+function hoverDuty(soc){const Fh=C.W*G/4;if(steady(1,soc,40).T<Fh)return null;let lo=0,hi=1;for(let k=0;k<30;k++){const m=(lo+hi)/2;steady(m,soc,40).T<Fh?lo=m:hi=m}return(lo+hi)/2}
+/*==== END PHYSICS ====*/
+</script>
+<script>
+/*==== UI HELPERS ====*/
+const $=id=>document.getElementById(id),DPR=Math.min(2,window.devicePixelRatio||1);
+function mk(id,W,H){const c=$(id);c.width=W*DPR;c.height=H*DPR;c.style.aspectRatio=W+'/'+H;const x=c.getContext('2d');x.setTransform(DPR,0,0,DPR,0,0);return x}
+const S=mk('cvScene',960,440),Mc=mk('cvMotor',440,440),Ph=mk('cvPhase',440,110),Fl=mk('cvFlow',960,250),St=mk('cvStrip',960,330);
+const CV=[mk('cvC1',470,270),mk('cvC2',470,270),mk('cvC3',470,270),mk('cvC4',470,270)];
+const f0=(x,n=0)=>(+x).toFixed(n);
+function txt(c,t,x,y,o={}){c.font=o.f||'12px system-ui';c.fillStyle=o.c||'#d6e2ef';c.textAlign=o.a||'left';c.textBaseline=o.b||'alphabetic';c.fillText(t,x,y)}
+function rr(c,x,y,w,h,r){c.beginPath();c.moveTo(x+r,y);c.arcTo(x+w,y,x+w,y+h,r);c.arcTo(x+w,y+h,x,y+h,r);c.arcTo(x,y+h,x,y,r);c.arcTo(x,y,x+w,y,r);c.closePath()}
+const PHC=['#f59e0b','#22d3ee','#a78bfa'];
+function tempColor(T){return T<40?'#60a5fa':T<70?'#4ade80':T<100?'#fbbf24':'#f87171'}
+/* visual rotation: scaled so fast RPM is still watchable */
+const V={th:0,r:0};
+function visRev(){const rpmMax=Math.max(1,M.wref*60/(2*Math.PI));return 3.0*Math.pow(clamp(X.w*60/(2*Math.PI)/rpmMax,0,1.3),.6)}
+let tAnim=0,phaseDash=[0,0,0],flowDash=0,tour=0;
+/*==== SCENE ====*/
+const air=[];for(let i=0;i<300;i++)air.push({xn:Math.random()*2-1,y:30+Math.random()*360,o:0});
+const smoke=[];
+const CX=610,CY=262;
+function drawScene(dt){
+  const c=S,t=tAnim,r=R,Tm=X.Tm,Rpx=60+5*C.D;
+  c.clearRect(0,0,960,440);
+  const g=c.createLinearGradient(0,0,0,440);g.addColorStop(0,'#0a1420');g.addColorStop(1,'#0f1d2d');c.fillStyle=g;c.fillRect(0,0,960,440);
+  c.strokeStyle='#ffffff08';c.lineWidth=1;for(let x=0;x<960;x+=40){c.beginPath();c.moveTo(x,0);c.lineTo(x,400);c.stroke()}for(let y=0;y<400;y+=40){c.beginPath();c.moveTo(0,y);c.lineTo(960,y);c.stroke()}
+  c.fillStyle='#172536';c.fillRect(0,400,960,40);c.fillStyle='#223a54';c.fillRect(0,400,960,3);txt(c,'TEST BENCH',14,428,{f:'700 10px system-ui',c:'#3d5a7a'});
+  /* ---- airflow ---- */
+  const viPx=clamp(r.vi*16,0,300),top=30,flo=392;
+  for(const p of air){
+    let sp;const y=p.y;
+    if(y<CY)sp=viPx*(.25+.75*Math.pow(clamp((y-top)/(CY-top),0,1),1.4));else sp=viPx*(1+Math.min(1,1-Math.exp(-(y-CY)/70)));
+    if(viPx<2)sp=3;
+    let rad;if(y<CY)rad=Rpx*(1+.45*Math.exp(-(CY-y)/110));else rad=Rpx*(1-.29*(1-Math.exp(-(y-CY)/60)));
+    let x=CX+p.xn*rad;
+    if(p.floor){p.x+=p.dir*sp*dt*1.3;p.o-=dt*1.2;x=p.x}else{p.y+=sp*dt;if(p.y>flo){p.floor=true;p.x=CX+p.xn*Rpx*.7;p.dir=p.xn<0?-1:1;p.o=1}}
+    if(p.floor&&(p.o<=0||Math.abs(p.x-CX)>Rpx*2.4)||p.y>440){p.floor=false;p.y=top+Math.random()*20;p.xn=Math.random()*2-1;p.o=0;}
+    const a=clamp(viPx/40,0,1)*(p.floor?clamp(p.o,0,1):1)*.8;
+    if(a>.02){c.strokeStyle='rgba(125,211,252,'+a+')';c.lineWidth=1.6;c.beginPath();c.moveTo(x,p.floor?flo:y);c.lineTo(p.floor?x+p.dir*sp*.12:x,p.floor?flo:y-Math.max(4,sp*.16));c.stroke()}
+  }
+  /* ---- battery ---- */
+  const bx=24,by=150,bw=170,bh=130,N=C.cells,soc=X.soc;
+  c.fillStyle='#0d1a29';rr(c,bx-6,by-8,bw+12,bh+16,10);c.fill();c.strokeStyle=tour===1?'#19d3b6':'#2b4a6b';c.lineWidth=tour===1?3:1.5;c.stroke();
+  const cw=(bw-(N-1)*3)/N;
+  for(let i=0;i<N;i++){const x=bx+i*(cw+3);c.fillStyle='#13263a';rr(c,x,by,cw,bh,3);c.fill();
+    const fh=bh*soc,col=soc>.5?'#22c55e':soc>.2?'#f59e0b':'#ef4444';const gg=c.createLinearGradient(0,by+bh-fh,0,by+bh);gg.addColorStop(0,col);gg.addColorStop(1,col+'88');
+    c.fillStyle=gg;rr(c,x,by+bh-fh,cw,fh,3);c.fill();
+    const k=clamp(r.Ib/Math.max(M.Imax_b,1),0,1.2);if(k>.02){c.fillStyle='rgba(255,255,255,'+(.08+.12*Math.sin(t*6-i*.8))*k*2+')';rr(c,x,by,cw,bh,3);c.fill()}}
+  txt(c,f0(r.Vb,1)+' V',bx+bw/2,by+bh/2-4,{f:'700 26px ui-monospace,monospace',a:'center',c:'#fff'});
+  txt(c,N+'S · '+C.cap+' mAh · '+C.cR+'C',bx+bw/2,by+bh/2+16,{f:'11px system-ui',a:'center',c:'#cfe3f5'});
+  txt(c,'charge '+f0(soc*100)+' %',bx+bw/2,by+bh/2+32,{f:'600 12px system-ui',a:'center',c:'#e6f6ff'});
+  txt(c,'BATTERY',bx,by-16,{f:'700 11px system-ui',c:'#7fa3c7'});
+  const sag=r.Voc-r.Vb;txt(c,'sag −'+f0(sag,2)+' V (internal resistance)',bx,by+bh+22,{f:'11px system-ui',c:sag>.8?'#fca5a5':'#8aa0b8'});
+  /* ---- main current wires (dash speed = amps) ---- */
+  const spd=clamp(r.Ib*3.2,0,160);flowDash+=spd*dt;
+  const glowI=clamp(r.Ib/Math.max(M.Imax_b/4,4),0,1.2);
+  function wire(pts,col,dir,w=4){c.lineWidth=w;c.strokeStyle='#1b2c40';c.setLineDash([]);c.beginPath();pts.forEach((p,i)=>i?c.lineTo(p[0],p[1]):c.moveTo(p[0],p[1]));c.stroke();
+    if(r.Ib>.3){c.strokeStyle=col;c.shadowColor=col;c.shadowBlur=4+8*glowI;c.setLineDash([5,11]);c.lineDashOffset=dir*flowDash;c.beginPath();pts.forEach((p,i)=>i?c.lineTo(p[0],p[1]):c.moveTo(p[0],p[1]));c.stroke();c.shadowBlur=0;c.setLineDash([])}}
+  wire([[bx+bw+6,190],[292,190]],'#fbbf24',-1);wire([[292,238],[bx+bw+6,238]],'#fbbf24',-1);
+  c.fillStyle='#ef4444';c.fillRect(bx+bw+2,186,8,8);c.fillStyle='#e5e7eb';c.fillRect(bx+bw+2,234,8,8);txt(c,'+',bx+bw+14,182,{c:'#fca5a5',f:'700 12px system-ui'});txt(c,'−',bx+bw+14,256,{c:'#e5e7eb',f:'700 12px system-ui'});
+  txt(c,f0(r.Ib,1)+' A',216,180,{f:'700 12px ui-monospace,monospace',c:'#fcd34d'});
+  /* ---- ESC ---- */
+  const ex=292,ey=156,ew=106,eh=124;
+  c.fillStyle='#0b3b2e';rr(c,ex,ey,ew,eh,6);c.fill();c.strokeStyle=tour===2?'#19d3b6':'#14705a';c.lineWidth=tour===2?3:1.5;c.stroke();
+  const heat=clamp(r.pEsc/25,0,1);if(heat>.05){c.fillStyle='rgba(248,113,113,'+heat*.35+')';rr(c,ex,ey,ew,eh,6);c.fill()}
+  c.fillStyle='#d1d5db';for(let i=0;i<6;i++)c.fillRect(ex+8+i*15,ey+6,9,16);
+  c.fillStyle='#111827';rr(c,ex+10,ey+30,34,26,3);c.fill();txt(c,'MCU',ex+27,ey+47,{f:'700 9px system-ui',a:'center',c:'#9ca3af'});
+  c.fillStyle='#374151';c.fillRect(ex+54,ey+34,10,18);c.fillRect(ex+70,ey+34,10,18);c.fillRect(ex+86,ey+34,10,18);
+  txt(c,'ESC (speed controller)',ex,ey-8,{f:'700 11px system-ui',c:'#7fa3c7'});
+  c.fillStyle='#02060b';c.fillRect(ex+8,ey+64,ew-16,38);c.strokeStyle='#19d3b6';c.lineWidth=1.5;c.beginPath();
+  const per=26,dt2=X.duty,x0=ex+8,x1=ex+ew-8;let px=x0-((t*40)%per);let first=true;
+  c.save();c.beginPath();c.rect(x0,ey+64,x1-x0,38);c.clip();c.beginPath();
+  for(let xx=px;xx<x1+per;xx+=per){const hi=ey+70,lo=ey+96,w1=per*clamp(dt2,.02,.98);c.moveTo(xx,lo);c.lineTo(xx,hi);c.lineTo(xx+w1,hi);c.lineTo(xx+w1,lo);c.lineTo(xx+per,lo)}
+  c.stroke();c.restore();
+  txt(c,'PWM duty '+f0(X.duty*100)+' %',ex+ew/2,ey+116,{f:'600 10px ui-monospace,monospace',a:'center',c:'#a7f3d0'});
+  /* ---- 3-phase wires to motor ---- */
+  const mA=[[398,180],[398,208],[398,236]],mx=CX-34,my0=CY+30+0;
+  const th=V.th*7;
+  for(let k=0;k<3;k++){const ik=Math.sin(th-k*2*Math.PI/3),mag=Math.abs(ik)*clamp(r.Im/Math.max(M.Imax_m,1),0,1.3);
+    phaseDash[k]+=clamp(r.Im*2.2,0,120)*dt;
+    c.lineWidth=4;c.strokeStyle='#1b2c40';c.setLineDash([]);c.beginPath();c.moveTo(mA[k][0],mA[k][1]);c.bezierCurveTo(480,mA[k][1],480+k*8,330,mx+8+k*10,CY+52);c.stroke();
+    if(r.Im>.3){c.strokeStyle=PHC[k];c.globalAlpha=.25+.75*Math.min(1,Math.abs(ik));c.shadowColor=PHC[k];c.shadowBlur=3+10*Math.min(1,mag);c.setLineDash([5,11]);c.lineDashOffset=-phaseDash[k];c.beginPath();c.moveTo(mA[k][0],mA[k][1]);c.bezierCurveTo(480,mA[k][1],480+k*8,330,mx+8+k*10,CY+52);c.stroke();c.shadowBlur=0;c.globalAlpha=1;c.setLineDash([])}
+    txt(c,'ABC'[k],404,mA[k][1]-4,{f:'700 10px system-ui',c:PHC[k]})}
+  txt(c,'3-phase AC ('+f0(r.Im,1)+' A)',404,166,{f:'600 11px ui-monospace,monospace',c:'#cbd5e1'});
+  /* ---- load cell beam + motor ---- */
+  const defl=clamp(r.T/15,0,1)*14,beamY=346,fixX=760,freeX=CX;
+  c.fillStyle='#223a54';c.fillRect(fixX,beamY-12,24,400-beamY+12);
+  c.strokeStyle='#8aa0b8';c.lineWidth=12;c.lineCap='round';c.beginPath();c.moveTo(fixX+6,beamY);c.quadraticCurveTo((fixX+freeX)/2,beamY,freeX,beamY-defl);c.stroke();c.lineCap='butt';
+  c.strokeStyle='#fbbf24';c.lineWidth=2;c.beginPath();for(let i=0;i<5;i++){const x=fixX-20-i*3;c.moveTo(x,beamY-6);c.lineTo(x,beamY+6)}c.stroke();
+  txt(c,'load cell (strain gauge)',fixX-110,beamY+28,{f:'10.5px system-ui',c:'#8aa0b8'});
+  const mY=beamY-defl-6;
+  /* motor body */
+  const mw=76,mh=52,mx0=CX-mw/2,mtop=mY-mh-14;
+  const hg=clamp((Tm-45)/70,0,1);
+  if(hg>.02){const rg=c.createRadialGradient(CX,mtop+mh/2,10,CX,mtop+mh/2,90);rg.addColorStop(0,'rgba(248,113,113,'+(.55*hg+.12*Math.sin(t*14)*hg)+')');rg.addColorStop(1,'rgba(248,113,113,0)');c.fillStyle=rg;c.fillRect(CX-110,mtop-60,220,200)}
+  c.fillStyle='#374151';rr(c,CX-30,mY-14,60,16,3);c.fill();
+  const bg=c.createLinearGradient(mx0,0,mx0+mw,0);bg.addColorStop(0,'#475569');bg.addColorStop(.5,'#94a3b8');bg.addColorStop(1,'#334155');c.fillStyle=bg;rr(c,mx0,mtop,mw,mh,7);c.fill();
+  c.save();rr(c,mx0,mtop,mw,mh,7);c.clip();const off=(V.th*30)%12;c.strokeStyle='rgba(15,23,42,.55)';c.lineWidth=2;for(let x=mx0-12+off;x<mx0+mw+12;x+=12){c.beginPath();c.moveTo(x,mtop);c.lineTo(x,mtop+mh);c.stroke()}c.restore();
+  c.strokeStyle=tour===3||tour===4?'#19d3b6':(Tm>100?'#f87171':'#64748b');c.lineWidth=tour===3||tour===4?3:1.5;rr(c,mx0,mtop,mw,mh,7);c.stroke();
+  txt(c,'MOTOR',CX,mtop+mh/2+4,{f:'700 10px system-ui',a:'center',c:'#0f172a'});
+  c.fillStyle='#cbd5e1';c.fillRect(CX-4,mtop-18,8,18);
+  /* propeller (side view, edge-on spinning) */
+  const hy=mtop-18;V.hy=hy;
+  const rev=V.r,blur=clamp((rev-1.0)/1.6,0,1);
+  const ca=Math.cos(V.th);
+  c.save();c.translate(CX,hy);
+  if(blur>0){c.fillStyle='rgba(148,197,255,'+.20*blur+')';c.beginPath();c.ellipse(0,0,Rpx,Rpx*.11,0,0,7);c.fill();c.strokeStyle='rgba(186,230,253,'+.45*blur+')';c.lineWidth=1;c.beginPath();c.ellipse(0,0,Rpx,Rpx*.11,0,0,7);c.stroke()}
+  for(let b=0;b<2;b++){const s=b?-1:1,bxl=s*Rpx*ca;const al=1-.75*blur;c.globalAlpha=al;
+    c.fillStyle=(s*Math.sin(V.th)>0)?'#e5e7eb':'#9ca3af';c.beginPath();c.moveTo(0,-3);c.lineTo(bxl*.5,-5.5*Math.abs(ca)-2);c.lineTo(bxl,-1);c.lineTo(bxl*.5,2.5);c.lineTo(0,3);c.closePath();c.fill();
+    c.fillStyle=b?'#f472b6':'#60a5fa';c.fillRect(Math.min(bxl,bxl*.88),-2.5,Math.abs(bxl*.12)+.5,5);c.globalAlpha=1}
+  c.fillStyle='#e5e7eb';c.beginPath();c.arc(0,0,7,0,7);c.fill();c.restore();
+  if(tour===5){c.strokeStyle='#19d3b6';c.lineWidth=3;rr(c,CX-Rpx-8,hy-22,2*Rpx+16,44,8);c.stroke()}
+  txt(c,'PROPELLER '+f0(C.D,1)+'×'+f0(C.pitch,1)+' in',CX-Rpx,hy-26,{f:'700 11px system-ui',c:'#7fa3c7'});
+  /* thrust arrow */
+  const al=clamp(r.T/16,0,1)*70;if(al>2){c.strokeStyle='#4ade80';c.fillStyle='#4ade80';c.lineWidth=5;c.beginPath();c.moveTo(CX+Rpx+44,hy+40);c.lineTo(CX+Rpx+44,hy+40-al);c.stroke();c.beginPath();c.moveTo(CX+Rpx+44,hy+40-al-12);c.lineTo(CX+Rpx+17,hy+40-al+3);c.lineTo(CX+Rpx+35,hy+40-al+3);c.fill();txt(c,'THRUST',CX+Rpx+44,hy+54,{f:'700 10px system-ui',a:'center',c:'#86efac'})}
+  txt(c,'▼ air speed through the prop: '+f0(r.vi,1)+' m/s',CX,24,{f:'600 12px system-ui',c:'#7dd3fc',a:'center'});
+  /* tour highlight boxes */
+  const HL={1:[12,130,196,184],2:[284,148,122,140],3:[398,140,258,230],4:[398,140,258,230],6:[270,130,570,270]}[tour];
+  /* scale display */
+  c.fillStyle='#050b12';rr(c,440,350,150,46,6);c.fill();c.strokeStyle='#1d3b52';c.lineWidth=1.5;c.stroke();
+  txt(c,'THRUST SCALE',515,364,{f:'700 9px system-ui',a:'center',c:'#4b6a86'});txt(c,f0(r.T/G*1000)+' g',515,388,{f:'700 22px ui-monospace,monospace',a:'center',c:'#4ade80'});
+  /* thrust gauge */
+  const gx=880,gy=60,gh=300,tmax=steady(1,X.soc,40).T||1,Fh=C.W*G/4;
+  c.fillStyle='#0d1a29';rr(c,gx,gy,26,gh,5);c.fill();c.strokeStyle='#2b4a6b';c.lineWidth=1.2;c.stroke();
+  const fillh=clamp(r.T/tmax,0,1)*gh;const gg=c.createLinearGradient(0,gy+gh,0,gy);gg.addColorStop(0,'#16a34a');gg.addColorStop(1,'#bef264');c.fillStyle=gg;rr(c,gx+2,gy+gh-fillh,22,fillh,3);c.fill();
+  const hy2=gy+gh-clamp(Fh/tmax,0,1)*gh;c.strokeStyle='#fbbf24';c.setLineDash([4,3]);c.lineWidth=2;c.beginPath();c.moveTo(gx-8,hy2);c.lineTo(gx+34,hy2);c.stroke();c.setLineDash([]);
+  txt(c,'hover need',gx-12,hy2+4,{f:'10px system-ui',a:'right',c:'#fcd34d'});txt(c,'max '+f0(tmax/G*1000)+' g',gx+13,gy-8,{f:'10px system-ui',a:'center',c:'#8aa0b8'});
+  /* heat label */
+  txt(c,'motor '+f0(Tm)+' °C',mx0-10,mtop+6,{f:'700 13px ui-monospace,monospace',a:'right',c:tempColor(Tm)});
+  /* smoke */
+  if(Tm>115&&!X.burnt||X.burnt){if(Math.random()<(X.burnt?.7:.25))smoke.push({x:CX+(Math.random()-.5)*40,y:mtop,vx:(Math.random()-.5)*15,vy:-40-Math.random()*30,s:6,a:.6})}
+  for(let i=smoke.length-1;i>=0;i--){const q=smoke[i];q.x+=q.vx*dt;q.y+=q.vy*dt;q.s+=14*dt;q.a-=.45*dt;if(q.a<=0){smoke.splice(i,1);continue}c.fillStyle='rgba(120,130,140,'+q.a+')';c.beginPath();c.arc(q.x,q.y,q.s,0,7);c.fill()}
+  if(HL&&tour!==5){c.save();c.strokeStyle='rgba(25,211,182,'+(.55+.45*Math.sin(t*5))+')';c.lineWidth=3;c.setLineDash([8,5]);rr(c,HL[0],HL[1],HL[2],HL[3],10);c.stroke();c.restore()}
+}
+/*==== MOTOR CUTAWAY ====*/
+function drawMotor(){
+  const c=Mc,cx=220,cy=214,th=V.th,I=clamp(R.Im/Math.max(M.Imax_m,1),0,1.4),thE=th*7+Math.PI/2;
+  c.clearRect(0,0,440,440);
+  c.fillStyle='#0b1522';c.fillRect(0,0,440,440);
+  /* rotor bell */
+  c.save();c.translate(cx,cy);c.rotate(th);
+  c.fillStyle='#3b4a5c';c.beginPath();c.arc(0,0,192,0,7);c.arc(0,0,164,0,7,true);c.fill('evenodd');
+  c.fillStyle='#e5e7eb';c.beginPath();c.moveTo(0,-192);c.lineTo(-7,-203);c.lineTo(7,-203);c.fill();
+  for(let k=0;k<14;k++){const a0=k*2*Math.PI/14+.03,a1=(k+1)*2*Math.PI/14-.03;c.fillStyle=k%2?'#2563eb':'#dc2626';c.beginPath();c.arc(0,0,163,a0,a1);c.arc(0,0,142,a1,a0,true);c.closePath();c.fill();
+    const am=(a0+a1)/2;c.save();c.rotate(am+Math.PI/2);txt(c,k%2?'S':'N',0,-148,{f:'700 12px system-ui',a:'center',c:'#fff'});c.restore()}
+  c.restore();
+  /* stator */
+  c.fillStyle='#1b2a3b';c.beginPath();c.arc(cx,cy,140,0,7);c.fill();
+  for(let k=0;k<12;k++){
+    const a=k*Math.PI/6-Math.PI/2+Math.PI/12,ph=Math.floor(k/2)%3,pol=k%2?-1:1,cur=I*Math.sin(thE-ph*2*Math.PI/3),m=cur*pol;
+    c.save();c.translate(cx,cy);c.rotate(a);
+    c.fillStyle='#64748b';c.fillRect(54,-9,76,18);                        /* tooth */
+    c.fillStyle=PHC[ph]+(Math.round(clamp(.22+.78*Math.abs(cur),0,1)*255).toString(16).padStart(2,'0'));rr(c,66,-19,52,38,6);c.fill();   /* coil */
+    c.strokeStyle='#0b1522';c.lineWidth=1;for(let q=0;q<5;q++){c.beginPath();c.moveTo(70+q*10,-19);c.lineTo(70+q*10,19);c.stroke()}
+    const pc=m>0?'#ef4444':'#3b82f6',pa=clamp(Math.abs(m)*1.6,0,1);
+    c.fillStyle=pc+(Math.round(pa*255).toString(16).padStart(2,'0'));c.beginPath();c.moveTo(126,-18);c.lineTo(138,-22);c.lineTo(138,22);c.lineTo(126,18);c.closePath();c.fill();
+    if(Math.abs(m)>.25){c.rotate(Math.PI/2);txt(c,m>0?'N':'S',0,-100,{f:'700 12px system-ui',a:'center',c:'#fff',b:'middle'})}
+    c.restore();
+    /* current direction dot / cross */
+    const rx=cx+Math.cos(a)*92,ry=cy+Math.sin(a)*92;if(Math.abs(cur)>.3){c.fillStyle='#0b1522';c.beginPath();c.arc(rx,ry,6,0,7);c.fill();c.strokeStyle='#fff';c.lineWidth=1.5;if(cur*pol>0){c.beginPath();c.arc(rx,ry,1.8,0,7);c.stroke()}else{c.beginPath();c.moveTo(rx-3,ry-3);c.lineTo(rx+3,ry+3);c.moveTo(rx+3,ry-3);c.lineTo(rx-3,ry+3);c.stroke()}}
+  }
+  /* shaft */
+  c.save();c.translate(cx,cy);c.rotate(th);c.fillStyle='#cbd5e1';c.beginPath();c.arc(0,0,30,0,7);c.fill();c.fillStyle='#475569';c.fillRect(-3,-30,6,16);c.restore();
+  txt(c,'Rotor bell: 14 magnets, spins',12,22,{f:'600 11.5px system-ui',c:'#9bb4cc'});txt(c,'Stator: 12 coils, fixed',12,38,{f:'600 11.5px system-ui',c:'#9bb4cc'});
+  txt(c,'coil colour = phase · brightness = current',12,426,{f:'11px system-ui',c:'#7189a3'});txt(c,'●/× = current direction',308,426,{f:'11px system-ui',c:'#7189a3'});
+  /* phase scope */
+  const p=Ph;p.clearRect(0,0,440,110);p.fillStyle='#0b1522';p.fillRect(0,0,440,110);
+  const amp=clamp(R.Im/Math.max(M.Imax_m,1),.12,1.2)*38;p.strokeStyle='#1d3047';p.lineWidth=1;p.beginPath();p.moveTo(0,55);p.lineTo(440,55);p.stroke();
+  for(let k=0;k<3;k++){p.strokeStyle=PHC[k];p.lineWidth=2;p.beginPath();for(let x=0;x<=440;x+=4){const a=x/440*4*Math.PI;const y=55-amp*Math.sin(a-k*2*Math.PI/3);x?p.lineTo(x,y):p.moveTo(x,y)}p.stroke()}
+  const cxp=((thE%(4*Math.PI))+4*Math.PI)%(4*Math.PI)/(4*Math.PI)*440;p.strokeStyle='#ffffff77';p.setLineDash([3,3]);p.beginPath();p.moveTo(cxp,4);p.lineTo(cxp,106);p.stroke();p.setLineDash([]);
+  for(let k=0;k<3;k++){const a=cxp/440*4*Math.PI;p.fillStyle=PHC[k];p.beginPath();p.arc(cxp,55-amp*Math.sin(a-k*2*Math.PI/3),4,0,7);p.fill()}
+  txt(p,'3 phase currents ('+f0(R.Im,1)+' A peak) — the ESC makes these 120° apart',8,14,{f:'11px system-ui',c:'#9bb4cc'});
+}
+/*==== POWER FLOW ====*/
+function drawFlow(){
+  const c=Fl,r=R;c.clearRect(0,0,960,250);c.fillStyle='#0b1522';c.fillRect(0,0,960,250);
+  const segs=[['Useful: moving air',r.pIdeal,'#22c55e'],['Propeller losses',r.pProp,'#38bdf8'],['Motor iron + friction',r.pFe,'#f59e0b'],['Motor copper (I²R)',r.pCu,'#fb923c'],['ESC losses',r.pEsc,'#ef4444'],['Battery internal (I²R)',r.pInt,'#a855f7'],['Spinning up the rotor',r.pSpin,'#94a3b8']];
+  const tot=segs.reduce((s,x)=>s+Math.max(0,x[1]),0);
+  txt(c,'Power leaving the battery',30,26,{f:'600 12px system-ui',c:'#9bb4cc'});txt(c,f0(r.Pbat)+' W',200,27,{f:'700 18px ui-monospace,monospace',c:'#fff'});
+  const loss=tot-r.pIdeal;txt(c,'wasted as heat',330,26,{f:'600 12px system-ui',c:'#9bb4cc'});txt(c,f0(loss)+' W',430,27,{f:'700 18px ui-monospace,monospace',c:'#f87171'});
+  txt(c,'useful (accelerating air)',540,26,{f:'600 12px system-ui',c:'#9bb4cc'});txt(c,f0(r.pIdeal)+' W',690,27,{f:'700 18px ui-monospace,monospace',c:'#4ade80'});
+  const x0=30,W=900,y0=76,H=46;c.fillStyle='#0d1a29';rr(c,x0-2,y0-2,W+4,H+4,8);c.fill();
+  let x=x0;const mids=[];
+  c.save();rr(c,x0,y0,W,H,6);c.clip();
+  if(tot>2)for(const s of segs){const w=Math.max(0,s[1])/tot*W;if(w<=0.3){mids.push(null);continue}
+    c.fillStyle=s[2];c.fillRect(x,y0,w,H);c.save();c.beginPath();c.rect(x,y0,w,H);c.clip();c.strokeStyle='rgba(255,255,255,.22)';c.lineWidth=5;const off=(tAnim*50)%22;for(let q=x-H-22+off;q<x+w+H;q+=22){c.beginPath();c.moveTo(q,y0+H);c.lineTo(q+H,y0);c.stroke()}c.restore();mids.push([x+w/2,w]);x+=w}
+  else{c.fillStyle='#1a2b3f';c.fillRect(x0,y0,W,H);txt(c,'motor is stopped — nothing is being drawn from the battery',x0+W/2,y0+H/2+4,{f:'12px system-ui',a:'center',c:'#7189a3'})}
+  c.restore();
+  /* heat waves above loss segments */
+  segs.forEach((s,i)=>{if(i===0||!mids[i])return;const m=mids[i],hgt=clamp(Math.sqrt(s[1])*2.2,0,44);if(hgt<3)return;c.strokeStyle=s[2];c.globalAlpha=.7;c.lineWidth=2;
+    for(let q=-1;q<=1;q++){const bx=m[0]+q*Math.min(10,m[1]/3);c.beginPath();for(let yy=0;yy<=hgt;yy+=3){const xx=bx+Math.sin(yy*.35-tAnim*6+q)*3;yy?c.lineTo(xx,y0-4-yy):c.moveTo(xx,y0-4)}c.stroke()}c.globalAlpha=1});
+  if(mids[0]){txt(c,'→ thrust',x0+4,y0-6,{f:'700 11px system-ui',c:'#86efac'})}
+  /* legend */
+  segs.forEach((s,i)=>{const col=i%4,row=Math.floor(i/4),lx=30+col*232,ly=150+row*26;c.fillStyle=s[2];rr(c,lx,ly-10,12,12,3);c.fill();txt(c,s[0],lx+18,ly,{f:'12px system-ui',c:'#cbd5e1'});txt(c,f0(Math.max(0,s[1]),1)+' W'+(tot>2?'  ('+f0(Math.max(0,s[1])/tot*100)+' %)':''),lx+18,ly+12,{f:'700 11px ui-monospace,monospace',c:s[2]})});
+  /* efficiency chain */
+  const Pin=r.Vb*r.Ib,Pmot=Pin-r.pEsc,e1=r.Voc>0&&r.Ib>.3?r.Vb/r.Voc:0,e2=Pin>3?Pmot/Pin:0,e3=Pmot>3?r.pShaft/Pmot:0,e4=r.pShaft>1?r.pIdeal/r.pShaft:0;
+  const ch=[['Battery',e1],['ESC',e2],['Motor',e3],['Propeller',e4]],bw=150,gap=34;let bx=30;
+  txt(c,'Efficiency chain (each stage keeps this much):',30,210,{f:'600 11px system-ui',c:'#7189a3'});
+  ch.forEach((q,i)=>{c.fillStyle='#10243a';rr(c,bx,216,bw,28,6);c.fill();c.strokeStyle='#2b4a6b';c.lineWidth=1;c.stroke();txt(c,q[0],bx+10,234,{f:'12px system-ui',c:'#cbd5e1'});txt(c,q[1]>0?f0(q[1]*100)+' %':'—',bx+bw-10,235,{f:'700 14px ui-monospace,monospace',a:'right',c:q[1]>.85?'#4ade80':q[1]>.65?'#fbbf24':'#f87171'});
+    txt(c,i<3?'×':'=',bx+bw+gap/2,236,{f:'700 16px system-ui',a:'center',c:'#7189a3'});bx+=bw+gap});
+  const tt=r.Pbat>3?r.pIdeal/r.Pbat:0;c.fillStyle='#0d3b2e';rr(c,bx,216,150,28,6);c.fill();c.strokeStyle='#14b8a6';c.stroke();txt(c,'Overall',bx+10,234,{f:'12px system-ui',c:'#a7f3d0'});txt(c,tt>0?f0(tt*100)+' %':'—',bx+140,235,{f:'700 14px ui-monospace,monospace',a:'right',c:'#4ade80'});
+}
+/*==== STRIP CHART ====*/
+const BUF=[];function pushSample(){BUF.push({thr:X.cmd*100,duty:X.duty*100,rpm:R.rpm||0,g:(R.T||0)/G*1000,Im:R.Im||0,Vb:R.Vb||0,Tm:X.Tm});if(BUF.length>600)BUF.shift()}
+function drawStrip(){
+  const c=St;c.clearRect(0,0,960,330);c.fillStyle='#0b1522';c.fillRect(0,0,960,330);
+  const sf=steady(1,1,40),rows=[
+   ['Throttle','%',d=>d.thr,0,100,'#19d3b6',[],d=>f0(d.thr)+' %'],
+   ['Motor speed','rpm',d=>d.rpm,0,Math.max(1000,sf.rpm*1.05),'#60a5fa',[],d=>f0(d.rpm)],
+   ['Thrust','g',d=>d.g,0,Math.max(100,sf.g*1.05),'#4ade80',[[C.W*1000/4,'#fbbf24','hover need']],d=>f0(d.g)+' g'],
+   ['Motor current','A',d=>d.Im,0,Math.max(10,M.Imax_m*1.5),'#fbbf24',[[M.Imax_m,'#f87171','motor rating']],d=>f0(d.Im,1)+' A'],
+   ['Battery voltage','V',d=>d.Vb,C.cells*3.0,C.cells*4.25,'#a78bfa',[[C.cells*3.2,'#f87171','empty']],d=>f0(d.Vb,1)+' V'],
+   ['Motor temp','°C',d=>d.Tm,20,160,'#fb923c',[[100,'#fbbf24','hot'],[150,'#f87171','burn']],d=>f0(d.Tm)+' °C']];
+  const rh=48,gp=6,L=150,Wd=790;
+  rows.forEach((rw,i)=>{const y=6+i*(rh+gp);c.fillStyle='#0d1a29';c.fillRect(L,y,Wd,rh);c.strokeStyle='#1a2d44';c.strokeRect(L+.5,y+.5,Wd,rh);
+    txt(c,rw[0],10,y+16,{f:'600 12px system-ui',c:'#cbd5e1'});const last=BUF[BUF.length-1];if(last)txt(c,rw[7](last),10,y+38,{f:'700 17px ui-monospace,monospace',c:rw[5]});
+    for(const l of rw[6]){const yy=y+rh-(l[0]-rw[3])/(rw[4]-rw[3])*rh;if(yy>y&&yy<y+rh){c.strokeStyle=l[1];c.setLineDash([5,4]);c.lineWidth=1.2;c.beginPath();c.moveTo(L,yy);c.lineTo(L+Wd,yy);c.stroke();c.setLineDash([]);txt(c,l[2],L+Wd-4,yy-3,{f:'9.5px system-ui',a:'right',c:l[1]})}}
+    c.strokeStyle=rw[5];c.lineWidth=2;c.beginPath();BUF.forEach((d,k)=>{const x=L+Wd-(BUF.length-1-k)*(Wd/600),yv=clamp((rw[2](d)-rw[3])/(rw[4]-rw[3]),0,1.05),y2=y+rh-yv*rh;k?c.lineTo(x,y2):c.moveTo(x,y2)});c.stroke()});
+  txt(c,'20 s ago',L,326,{f:'10px system-ui',c:'#5b7691'});txt(c,'now',L+Wd,326,{f:'10px system-ui',a:'right',c:'#5b7691'});
+}
+/*==== CURVES ====*/
+let CURVES=null,curveT=0;
+function computeCurves(){
+  const full=[],now=[];for(let i=0;i<=20;i++){const d=i/20;full.push([d,steady(d,1,60)]);now.push([d,steady(d,Math.max(X.soc,.02),60)])}
+  CURVES={full,now,hv:hoverDuty(Math.max(X.soc,.02))};
+}
+function plot(c,W,H,o){
+  c.clearRect(0,0,W,H);c.fillStyle='#0b1522';c.fillRect(0,0,W,H);
+  const ml=54,mr=o.y2?50:16,mt=30,mb=38,pw=W-ml-mr,ph=H-mt-mb;
+  const X_=v=>ml+v/o.xmax*pw,Y_=v=>mt+ph-v/o.ymax*ph,Y2=v=>mt+ph-v/o.y2.max*ph;
+  txt(c,o.title,ml,18,{f:'700 12.5px system-ui',c:'#e5eef7'});
+  c.strokeStyle='#182a40';c.lineWidth=1;c.fillStyle='#6f87a1';c.font='10.5px system-ui';
+  for(let i=0;i<=5;i++){const yy=mt+ph-i/5*ph,xx=ml+i/5*pw;c.beginPath();c.moveTo(ml,yy);c.lineTo(ml+pw,yy);c.stroke();c.beginPath();c.moveTo(xx,mt);c.lineTo(xx,mt+ph);c.stroke();
+    txt(c,f0(i/5*o.ymax,o.ymax<10?1:0),ml-6,yy+3,{f:'10.5px system-ui',a:'right',c:'#6f87a1'});txt(c,f0(i/5*o.xmax),xx,mt+ph+14,{f:'10.5px system-ui',a:'center',c:'#6f87a1'});
+    if(o.y2)txt(c,f0(i/5*o.y2.max),ml+pw+6,yy+3,{f:'10.5px system-ui',c:o.y2.col})}
+  txt(c,o.xl,ml+pw/2,H-6,{f:'11px system-ui',a:'center',c:'#9bb4cc'});c.save();c.translate(12,mt+ph/2);c.rotate(-Math.PI/2);txt(c,o.yl,0,0,{f:'11px system-ui',a:'center',c:o.y2?o.col1||'#9bb4cc':'#9bb4cc'});c.restore();
+  if(o.y2){c.save();c.translate(W-8,mt+ph/2);c.rotate(Math.PI/2);txt(c,o.y2.label,0,0,{f:'11px system-ui',a:'center',c:o.y2.col});c.restore()}
+  for(const h of o.h||[]){if(h.y>o.ymax)continue;c.strokeStyle=h.col;c.setLineDash([6,4]);c.lineWidth=1.6;c.beginPath();c.moveTo(ml,Y_(h.y));c.lineTo(ml+pw,Y_(h.y));c.stroke();c.setLineDash([]);txt(c,h.t,ml+pw-4,Y_(h.y)-4,{f:'10.5px system-ui',a:'right',c:h.col})}
+  for(const s of o.s){c.strokeStyle=s.col;c.lineWidth=s.w||2.2;c.setLineDash(s.dash||[]);c.beginPath();s.p.forEach((q,i)=>{const yy=s.y2?Y2(q[1]):Y_(q[1]);const xx=X_(q[0]);i?c.lineTo(xx,yy):c.moveTo(xx,yy)});c.stroke();c.setLineDash([])}
+  for(const d of o.dots||[]){const xx=X_(d.x),yy=d.y2?Y2(d.y):Y_(d.y);c.fillStyle=d.col;c.shadowColor=d.col;c.shadowBlur=10;c.beginPath();c.arc(xx,yy,5.5,0,7);c.fill();c.shadowBlur=0;c.strokeStyle='#fff';c.lineWidth=1.5;c.stroke()}
+  for(const v of o.v||[]){const xx=X_(v.x);c.strokeStyle=v.col;c.setLineDash([3,4]);c.beginPath();c.moveTo(xx,mt);c.lineTo(xx,mt+ph);c.stroke();c.setLineDash([]);txt(c,v.t,xx+4,mt+12,{f:'10.5px system-ui',c:v.col})}
+}
+function drawCurves(){
+  if(!CURVES)computeCurves();const {full,now,hv}=CURVES,r=R,Tg=steady(1,1,60).g,thr=X.cmd*100;
+  const pts=(a,f)=>a.map(q=>[q[0]*100,f(q[1])]);
+  plot(CV[0],470,270,{title:'Thrust vs throttle',xl:'throttle %',yl:'thrust (grams)',xmax:100,ymax:Math.ceil(Tg*1.05/100)*100,
+    s:[{p:pts(full,s=>s.g),col:'#64748b',dash:[5,4],w:1.6},{p:pts(now,s=>s.g),col:'#19d3b6'}],h:[{y:C.W*1000/4,col:'#fbbf24',t:'hover need (¼ of drone weight)'}],v:hv?[{x:hv*100,col:'#fbbf24',t:'hover '+f0(hv*100)+' %'}]:[],dots:[{x:thr,y:r.T/G*1000,col:'#19d3b6'}]});
+  const Imx=Math.max(M.Imax_m*1.4,steady(1,1,60).Im*1.1,5);
+  plot(CV[1],470,270,{title:'Motor current vs throttle',xl:'throttle %',yl:'current per motor (A)',xmax:100,ymax:Math.ceil(Imx/5)*5,
+    s:[{p:pts(full,s=>s.Im),col:'#64748b',dash:[5,4],w:1.6},{p:pts(now,s=>s.Im),col:'#fbbf24'}],h:[{y:M.Imax_m,col:'#f87171',t:'motor rating'},{y:M.Imax_b/4,col:'#fb7185',t:'battery limit ÷ 4'}],dots:[{x:thr,y:r.Im,col:'#fbbf24'}]});
+  const ef=now.map(q=>[q[1].g,q[1].eff]).filter(q=>q[0]>1);let best=ef.reduce((a,b)=>b[1]>a[1]?b:a,[0,0]);
+  plot(CV[2],470,270,{title:'Efficiency vs thrust',xl:'thrust (grams)',yl:'efficiency (g per watt)',xmax:Math.ceil(Tg*1.05/100)*100,ymax:Math.max(2,Math.ceil(best[1]*1.25)),
+    s:[{p:full.map(q=>[q[1].g,q[1].eff]).filter(q=>q[0]>1),col:'#64748b',dash:[5,4],w:1.6},{p:ef,col:'#4ade80'}],v:best[0]>0?[{x:best[0],col:'#86efac',t:'best '+f0(best[1],1)+' g/W'}]:[],dots:[{x:r.T/G*1000,y:r.eff,col:'#4ade80'}],h:[]});
+  const Pm=Math.ceil(Math.max(...now.map(q=>q[1].Pel))*1.1/50)*50,Rm_=Math.ceil(Math.max(...now.map(q=>q[1].rpm))*1.05/1000)*1000;
+  plot(CV[3],470,270,{title:'Speed and electrical power vs throttle',xl:'throttle %',yl:'speed (rpm)',col1:'#60a5fa',xmax:100,ymax:Rm_,y2:{max:Pm,col:'#fb923c',label:'power (W)'},
+    s:[{p:pts(now,s=>s.rpm),col:'#60a5fa'},{p:pts(now,s=>s.Pel),col:'#fb923c',y2:true}],dots:[{x:thr,y:r.rpm,col:'#60a5fa'},{x:thr,y:r.Pel,col:'#fb923c',y2:true}]});
+}
+/*==== TILES, PARAMS, DRONE CARD ====*/
+const TILES=[['thr','Throttle'],['rpm','Motor speed'],['thrust','Thrust'],['cur','Motor current'],['volt','Battery voltage'],['pow','Electrical power'],['eff','Efficiency'],['temp','Motor temperature'],['soc','Battery charge'],['time','Flight time left']];
+$('tiles').innerHTML=TILES.map(t=>'<div class="tile"><div class="l">'+t[1]+'</div><div class="v" id="tv_'+t[0]+'">–</div><div class="s" id="ts_'+t[0]+'">&nbsp;</div></div>').join('');
+function setTile(k,v,u,s,col){const e=$('tv_'+k);e.innerHTML=v+' <small>'+u+'</small>';e.style.color=col||'';$('ts_'+k).innerHTML=s||'&nbsp;'}
+function updateTiles(){
+  const r=R,Rpx=(60+5*C.D),tip=r.w*(M.D/2),sf=steady(1,X.soc,40);
+  setTile('thr',f0(X.cmd*100),'%','ESC duty '+f0(X.duty*100)+' %','#19d3b6');
+  setTile('rpm',f0(r.rpm),'rpm','prop tip speed '+f0(tip)+' m/s');
+  setTile('thrust',f0(r.T/G*1000),'g',f0(r.T,1)+' N · max '+f0(sf.g)+' g','#4ade80');
+  setTile('cur',f0(Math.abs(r.Im)<.05?0:r.Im,1),'A','rating ≈ '+f0(M.Imax_m)+' A',r.Im>M.Imax_m?'#f87171':r.Im>M.Imax_m*.8?'#fbbf24':'');
+  setTile('volt',f0(r.Vb,1),'V','sag '+f0(r.Voc-r.Vb,2)+' V · '+f0(r.Vb/C.cells,2)+' V/cell',r.Vb/C.cells<3.3?'#f87171':'');
+  setTile('pow',f0(r.Pel),'W','battery current '+f0(r.Ib,1)+' A',r.Ib>M.Imax_b/4?'#f87171':'');
+  setTile('eff',r.eff>0?f0(r.eff,2):'–','g/W','thrust per watt');
+  setTile('temp',f0(X.Tm),'°C',X.Tm>150?'BURNT OUT':X.Tm>105?'too hot':'safe below ~100 °C',tempColor(X.Tm));
+  setTile('soc',f0(X.soc*100),'%',f0(X.soc*M.Wh,1)+' Wh of '+f0(M.Wh)+' Wh',X.soc<.2?'#f87171':X.soc<.5?'#fbbf24':'#4ade80');
+  const need=4*r.Pel+20,mins=need>30?X.soc*M.Wh*.8/need*60:0;
+  setTile('time',need>30&&r.Pel>5?f0(mins,1):'–','min','if 4 motors ran at this level');
+}
+const PARAMS=[
+ ['KV','Motor KV',100,3000,10,v=>v+' KV','RPM the motor wants to spin per volt. Higher KV = faster spinning, more current, smaller props.'],
+ ['mg','Motor mass',10,350,5,v=>v+' g','A bigger, heavier motor has thicker windings (lower resistance) and can take more current without overheating.'],
+ ['D','Propeller diameter',3,22,.5,v=>v.toFixed(1)+' in','A bigger prop moves much more air per turn: thrust ∝ D⁴. But it needs more torque from the motor.'],
+ ['pitch','Propeller pitch',2,8,.1,v=>v.toFixed(1)+' in','How steeply the blade is angled. More pitch = more thrust per turn, but more load on the motor.'],
+ ['cells','Battery cells (S)',2,12,1,v=>v+'S','Cells in series: each adds ~3.7 V. More volts = faster motor at the same KV.'],
+ ['cap','Battery capacity',500,20000,100,v=>v+' mAh','The size of the fuel tank. Bigger = longer flight, but also a heavier drone.'],
+ ['cR','Battery discharge rating',5,100,5,v=>v+' C','Maximum current = C × capacity. A weak battery sags a lot under load.'],
+ ['W','Drone weight (4 motors)',.2,8,.05,v=>v.toFixed(2)+' kg','Total takeoff weight of the quadcopter these motors will lift.'],
+ ['amb','Air temperature',0,45,1,v=>v+' °C','Hot weather means worse motor cooling.']];
+$('params').innerHTML=PARAMS.map(p=>'<div class="prm"><label>'+p[1]+'</label><input type="range" id="pp_'+p[0]+'" min="'+p[2]+'" max="'+p[3]+'" step="'+p[4]+'"><output id="po_'+p[0]+'"></output><div class="hint">'+p[6]+'</div></div>').join('');
+function syncParams(){PARAMS.forEach(p=>{const e=$('pp_'+p[0]);if(document.activeElement!==e)e.value=C[p[0]];$('po_'+p[0]).textContent=p[5](+C[p[0]])})}
+PARAMS.forEach(p=>$('pp_'+p[0]).addEventListener('input',e=>{C[p[0]]=+e.target.value;derive();X.usedWh=(1-X.soc)*M.Wh;X.Vf=X.Vb;CURVES=null;syncParams()}));
+const PRESETS={std:['Standard 450 (10×4.5, 4S)',{}],mini:['Mini 5″ racing',{KV:2300,mg:28,D:5,pitch:4.3,cells:4,cap:1500,cR:50,W:.5}],endu:['Endurance 13″ (6S)',{KV:400,mg:90,D:13,pitch:4.4,cells:6,cap:8000,cR:25,W:2.4}],heavy:['Heavy-lift 18″ (6S)',{KV:320,mg:250,D:18,pitch:6.1,cells:6,cap:10000,cR:25,W:4.6}],over:['Overdriven ⚠ (KV 1400 on 10″)',{KV:1400}]};
+$('presets').innerHTML=Object.keys(PRESETS).map(k=>'<button data-p="'+k+'">'+PRESETS[k][0]+'</button>').join('');
+$('presets').onclick=e=>{const k=e.target.dataset.p;if(!k)return;Object.assign(C,C0,PRESETS[k][1]);derive();X.usedWh=(1-X.soc)*M.Wh;CURVES=null;syncParams();
+  [...$('presets').children].forEach(b=>b.classList.toggle('on',b.dataset.p===k))};
+function updateDrone(){
+  const sf=steady(1,X.soc,60),hv=hoverDuty(X.soc),hvF=hoverDuty(1),W=C.W,twr=4*sf.T/(W*G);
+  let h='<div class="kv"><span>Takeoff weight</span><b>'+f0(W,2)+' kg  ('+f0(W*G,1)+' N)</b></div>'+
+   '<div class="kv"><span>Thrust each motor needs to hover</span><b>'+f0(W*1000/4)+' g</b></div>'+
+   '<div class="kv"><span>Max thrust (4 motors)</span><b>'+f0(sf.g*4)+' g</b></div>'+
+   '<div class="kv"><span>Thrust-to-weight ratio</span><b style="color:'+(twr<1.1?'#f87171':twr<1.6?'#fbbf24':'#4ade80')+'">'+f0(twr,2)+' : 1</b></div>';
+  if(hv===null)h+='<div class="kv"><span>Hover throttle</span><b style="color:#f87171">cannot lift off!</b></div>';
+  else{const hs=steady(hv,X.soc,60),hf=steady(hvF||hv,1,60),P4=4*hs.Pel+20,P4f=4*hf.Pel+20;
+    h+='<div class="kv"><span>Hover throttle</span><b>'+f0(hv*100)+' %</b></div><div class="kv"><span>Current per motor at hover</span><b>'+f0(hs.Im,1)+' A</b></div>'+
+     '<div class="kv"><span>Total hover power (4 motors + 20 W electronics)</span><b>'+f0(P4)+' W</b></div>'+
+     '<div class="kv"><span>Hover flight time, fresh battery (80 % usable)</span><b style="color:var(--ac)">'+f0(M.Wh*.8/P4f*60,1)+' min</b></div>'+
+     '<div class="kv"><span>Flight time left on this battery</span><b>'+f0(X.soc*M.Wh*.8/P4*60,1)+' min</b></div>'+
+     '<div class="kv"><span>Weight of battery pack</span><b>'+f0(M.Wh/160*1000)+' g  ('+f0(M.Wh)+' Wh)</b></div>';}
+  $('drone').innerHTML=h;
+}
+/*==== GUIDED TOUR ====*/
+const TOUR=['Battery','ESC','Magnets &amp; coils','Back-EMF','Propeller','Losses &amp; heat','Limits'];
+$('tour').innerHTML=TOUR.map((t,i)=>'<button data-s="'+(i+1)+'">'+(i+1)+' · '+t+'</button>').join('')+'<button data-s="0">Hide highlight</button>';
+$('tour').onclick=e=>{const s=e.target.dataset.s;if(s===undefined)return;tour=+s;[...$('tour').children].forEach(b=>b.classList.toggle('on',b.dataset.s===s&&s!=='0'));updateTour()};
+function updateTour(){
+  const r=R,e=(t)=>'<div class="eq">'+t+'</div>',T_=tour||1,Vm=X.duty*r.Vb,bemf=M.Ke*r.w,tipv=r.w*M.D/2;
+  const B=[
+   ['The battery stores the energy','A LiPo pack is '+C.cells+' cells in series. Each cell is 4.2 V when full and falls toward 3.0 V when empty. When current flows, the battery’s own internal resistance wastes some voltage — the harder you pull, the more it “sags”.',
+     e('Open-circuit '+f0(r.Voc,2)+' V − ('+f0(r.Ib,1)+' A × '+f0(M.Rint*1000,0)+' mΩ) = <b>'+f0(r.Vb,2)+' V</b> at the terminals')+e('Energy left: '+f0(X.soc*M.Wh,1)+' Wh  →  charge '+f0(X.soc*100)+' %')],
+   ['The ESC chops the battery into pulses','The ESC (electronic speed controller) can’t output “half a battery”. It switches the full battery voltage on and off thousands of times a second — PWM. The share of time it is ON is the <b>duty cycle</b>, which is your throttle. It also builds the three AC phases the motor needs by switching in the right order, and a little of the power is lost as heat in its transistors.',
+     e('Average motor voltage = duty × battery voltage = '+f0(X.duty*100)+' % × '+f0(r.Vb,1)+' V = <b>'+f0(Vm,1)+' V</b>')+e('ESC heat: '+f0(r.pEsc,1)+' W')],
+   ['Coils pull on magnets','Current through the stator coils turns them into electromagnets. The ESC energises them in a rotating pattern so their poles always sit just ahead of the rotor’s magnets and drag them around (watch the cutaway: coil poles N/S, rotor magnets N/S). More current = stronger field = more torque.',
+     e('Torque = Kt × (current − no-load current) = '+f0(M.Kt*1000,2)+' mNm/A × ('+f0(r.Im,1)+' − '+f0(M.I0,1)+') A = <b>'+f0(Math.max(0,M.Kt*(r.Im-M.I0))*1000,0)+' mNm</b>')+e('Electrical frequency = 7 pole-pairs × '+f0(r.rpm/60,0)+' rev/s = <b>'+f0(7*r.rpm/60,0)+' Hz</b>')],
+   ['A spinning motor is also a generator','As the magnets sweep past the coils they generate a voltage that opposes the supply: the <b>back-EMF</b>. It rises with speed. The motor accelerates until the supply minus back-EMF only leaves enough current to push against the propeller’s drag. That is why the speed settles by itself. <b>KV</b> is simply “RPM per volt” of that effect.',
+     e('Back-EMF = rpm ÷ KV = '+f0(r.rpm)+' ÷ '+C.KV+' = <b>'+f0(bemf,1)+' V</b>')+e('Current = (motor voltage − back-EMF) ÷ winding resistance = ('+f0(Vm,1)+' − '+f0(bemf,1)+') ÷ '+f0(r.Rm,3)+' Ω = <b>'+f0((Vm-bemf)/r.Rm,1)+' A</b>')],
+   ['The propeller throws air down','The propeller accelerates air downward; the reaction is thrust. Thrust grows with the <b>square</b> of RPM and the <b>fourth power</b> of diameter, but power grows with the <b>cube</b> of RPM. Double the RPM → 4× thrust but 8× power. That is why high throttle is so costly.',
+     e('Thrust = Ct · ρ · n² · D⁴ = '+f0(M.Ct,3)+' × 1.225 × '+f0(r.rpm/60,0)+'² × '+f0(M.D,3)+'⁴ = <b>'+f0(r.T,1)+' N ('+f0(r.T/G*1000)+' g)</b>')+e('Air speed through the disc = √(T ÷ 2ρA) = <b>'+f0(r.vi,1)+' m/s</b>   ·   blade tip speed '+f0(tipv)+' m/s')],
+   ['Every stage loses some power as heat','From battery to air, power is lost at each step (see the bar and the efficiency chain). Heat in the motor raises its temperature, and hot copper has more resistance — about +0.39 % per °C — so it wastes even more. Moving air cools the motor, so a stopped or hovering motor runs hotter than you may expect.',
+     e('Useful power into air '+f0(r.pIdeal)+' W of '+f0(r.Pbat)+' W from the battery = <b>'+(r.Pbat>3?f0(r.pIdeal/r.Pbat*100):'–')+' %</b>')+e('Winding resistance now '+f0(r.Rm,3)+' Ω (cold: '+f0(M.Rm25,3)+' Ω) at '+f0(X.Tm)+' °C')],
+   ['The limits you must respect','<b>Current:</b> above the motor’s rating the windings overheat. <b>Battery:</b> above its C-limit the voltage collapses. <b>Voltage:</b> below ~3.0 V per cell the pack is damaged, so the ESC cuts power. <b>Temperature:</b> above ~100 °C the insulation and magnets suffer; at ~150 °C the motor burns out. Real flight controllers watch all of these.',
+     e('Current '+f0(r.Im,1)+' A / rating '+f0(M.Imax_m)+' A · battery '+f0(r.Ib,1)+' A / limit '+f0(M.Imax_b)+' A · '+f0(r.Vb/C.cells,2)+' V per cell · motor '+f0(X.Tm)+' °C')]];
+  const b=B[T_-1];$('tbody').innerHTML='<h3>'+T_+' · '+b[0]+'</h3><div>'+b[1]+'</div>'+b[2];
+}
+/*==== CONTROLS ====*/
+let thr=0,rampT=-1;
+function setThr(v){thr=clamp(v,0,100);$('thr').value=thr;$('thrVal').textContent=f0(thr,thr%1?1:0)+' %'}
+$('thr').addEventListener('input',e=>{rampT=-1;setThr(+e.target.value)});
+document.querySelectorAll('[data-t]').forEach(b=>b.onclick=()=>{rampT=-1;setThr(+b.dataset.t)});
+$('bHover').onclick=()=>{rampT=-1;const h=hoverDuty(X.soc);setThr(h===null?100:Math.ceil(h*1000)/10)};
+$('bRamp').onclick=()=>{rampT=0};
+$('prot').onchange=e=>{X.prot=e.target.checked};
+$('bReset').onclick=()=>{Object.assign(X,{w:0,duty:0,Tm:C.amb,soc:1,usedWh:0,lvc:false,burnt:false,dead:false,Vb:C.cells*4.15,Vf:C.cells*4.15});smoke.length=0;rampT=-1;setThr(0)};
+document.addEventListener('keydown',e=>{if(e.target.tagName==='SELECT')return;const k=e.key;let h=true;
+  if(k==='ArrowUp')setThr(thr+2);else if(k==='ArrowDown')setThr(thr-2);else if(k==='PageUp')setThr(thr+10);else if(k==='PageDown')setThr(thr-10);else if(k==='0')setThr(0);else h=false;
+  if(h){rampT=-1;e.preventDefault()}});
+function banner(){
+  const r=R,chips=[];
+  if(X.burnt)chips.push(['bad','MOTOR BURNT OUT — press “Replace motor”']);
+  else if(X.dead)chips.push(['bad','BATTERY EMPTY']);
+  else if(X.lvc)chips.push(['bad','LOW-VOLTAGE CUT-OFF — lower throttle to restart']);
+  if(!X.burnt){if(r.Im>M.Imax_m*1.02)chips.push(['bad','OVERCURRENT '+f0(r.Im)+' A']);if(r.Ib>M.Imax_b)chips.push(['bad','BATTERY OVERLOADED']);
+   if(X.Tm>105)chips.push([X.Tm>130?'bad':'warn','OVERHEATING '+f0(X.Tm)+' °C'+(X.prot&&thermalLimit()<1?' · power cut back':'')]);
+   if(r.Vb/C.cells<3.3&&!X.lvc&&!X.dead)chips.push(['warn','LOW BATTERY']);}
+  if(!chips.length&&r.rpm>100)chips.push(['ok','RUNNING NORMALLY']);
+  $('banner').innerHTML=chips.map(c=>'<span class="chip '+c[0]+'">'+c[1]+'</span>').join('');
+}
+/*==== MAIN LOOP ====*/
+let last=performance.now(),sampAcc=0,tTile=0,tCurve=0,tTour=0,tDrone=0;
+function frame(now){
+  const dt=Math.min(.05,(now-last)/1000);last=now;tAnim+=dt;
+  if(rampT>=0){rampT+=dt;const v=rampT<8?rampT/8*100:(16-rampT)/8*100;if(rampT>=16){rampT=-1;setThr(0)}else setThr(v)}
+  X.cmd=thr/100;X.prot=$('prot').checked;
+  const warp=+$('warp').value,n=Math.max(1,Math.ceil(dt/.002)),h=dt/n;for(let i=0;i<n;i++)physStep(h,warp);
+  V.r=visRev();V.th+=2*Math.PI*V.r*dt;
+  sampAcc+=dt;while(sampAcc>=1/30){pushSample();sampAcc-=1/30}
+  drawScene(dt);drawMotor();drawFlow();drawStrip();
+  tTile+=dt;if(tTile>.1){tTile=0;updateTiles();banner()}
+  tCurve+=dt;if(tCurve>.12){tCurve=0;if(!CURVES||Math.abs(X.soc-(CURVES.soc||0))>.004){computeCurves();CURVES.soc=X.soc}drawCurves()}
+  tTour+=dt;if(tTour>.2){tTour=0;updateTour()}
+  tDrone+=dt;if(tDrone>.5){tDrone=0;updateDrone()}
+  requestAnimationFrame(frame);
+}
+syncParams();[...$('presets').children][0].classList.add('on');computeCurves();CURVES.soc=X.soc;updateTiles();updateTour();updateDrone();
+requestAnimationFrame(frame);
+</script>
+</body></html>
